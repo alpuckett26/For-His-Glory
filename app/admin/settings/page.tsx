@@ -1,59 +1,390 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import type { Profile } from '@/types'
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = {
-  title: 'Settings | Admin',
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block font-body text-sm font-medium text-charcoal mb-1.5">{label}</label>
+      {children}
+    </div>
+  )
 }
+
+function TextInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full px-3 py-2.5 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold transition-colors"
+    />
+  )
+}
+
+function SectionCard({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="bg-white border border-warm-gray p-6 max-w-2xl">
+      <div className="mb-5">
+        <h2 className="font-display text-xl text-charcoal">{title}</h2>
+        {description && <p className="font-body text-sm text-charcoal/50 mt-0.5">{description}</p>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// ─── Site Settings Section ─────────────────────────────────────────────────────
+
+function SiteSettingsSection() {
+  const supabase = createClient()
+  const [settings, setSettings] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      const { data } = await supabase.from('site_settings').select('key, value')
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach(({ key, value }: { key: string; value: string }) => {
+          map[key] = value
+        })
+        setSettings(map)
+      }
+    }
+    loadSettings()
+  }, [supabase])
+
+  const set = (key: string, value: string) =>
+    setSettings((prev) => ({ ...prev, [key]: value }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const rows = Object.entries(settings).map(([key, value]) => ({ key, value }))
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert(rows, { onConflict: 'key' })
+      if (error) throw error
+      toast.success('Settings saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <SectionCard
+      title="Site Settings"
+      description="Core brand and store configuration."
+    >
+      <div className="space-y-4">
+        <FieldGroup label="Brand Name">
+          <TextInput
+            value={settings['brand_name'] ?? ''}
+            onChange={(v) => set('brand_name', v)}
+            placeholder="For His Glory"
+          />
+        </FieldGroup>
+        <FieldGroup label="Tagline">
+          <TextInput
+            value={settings['tagline'] ?? ''}
+            onChange={(v) => set('tagline', v)}
+            placeholder="Deo Gloria — For His Glory, Worn Daily"
+          />
+        </FieldGroup>
+        <FieldGroup label="Contact Email">
+          <TextInput
+            value={settings['contact_email'] ?? ''}
+            onChange={(v) => set('contact_email', v)}
+            placeholder="hello@forhisglory.com"
+          />
+        </FieldGroup>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="w-full bg-charcoal text-ivory font-body text-sm font-medium py-3 hover:bg-charcoal/80 transition-colors disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save Site Settings'}
+        </button>
+      </div>
+    </SectionCard>
+  )
+}
+
+// ─── Homepage Content Section ──────────────────────────────────────────────────
+
+function HomepageContentSection() {
+  const supabase = createClient()
+  const [settings, setSettings] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      const { data } = await supabase
+        .from('site_settings')
+        .select('key, value')
+        .in('key', ['hero_headline', 'hero_subheadline', 'hero_cta'])
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach(({ key, value }: { key: string; value: string }) => {
+          map[key] = value
+        })
+        setSettings(map)
+      }
+    }
+    loadSettings()
+  }, [supabase])
+
+  const set = (key: string, value: string) =>
+    setSettings((prev) => ({ ...prev, [key]: value }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const rows = Object.entries(settings).map(([key, value]) => ({ key, value }))
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert(rows, { onConflict: 'key' })
+      if (error) throw error
+      toast.success('Homepage content saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <SectionCard
+      title="Homepage Content"
+      description="Hero section text shown on the storefront."
+    >
+      <div className="space-y-4">
+        <FieldGroup label="Hero Headline">
+          <TextInput
+            value={settings['hero_headline'] ?? ''}
+            onChange={(v) => set('hero_headline', v)}
+            placeholder="Wear Your Faith"
+          />
+        </FieldGroup>
+        <FieldGroup label="Hero Subheadline">
+          <TextInput
+            value={settings['hero_subheadline'] ?? ''}
+            onChange={(v) => set('hero_subheadline', v)}
+            placeholder="Premium Christian apparel designed to inspire…"
+          />
+        </FieldGroup>
+        <FieldGroup label="Hero CTA Label">
+          <TextInput
+            value={settings['hero_cta'] ?? ''}
+            onChange={(v) => set('hero_cta', v)}
+            placeholder="Shop the Collection"
+          />
+        </FieldGroup>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="w-full bg-charcoal text-ivory font-body text-sm font-medium py-3 hover:bg-charcoal/80 transition-colors disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save Homepage Content'}
+        </button>
+      </div>
+    </SectionCard>
+  )
+}
+
+// ─── Supplier Config Section ───────────────────────────────────────────────────
+
+function SupplierConfigSection() {
+  const [testing, setTesting] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
+  const printfulKeySet = !!process.env.NEXT_PUBLIC_PRINTFUL_KEY_HINT // just a hint; real key is server-side
+
+  const testConnection = async () => {
+    setTesting(true)
+    setConnectionStatus('idle')
+    try {
+      const res = await fetch('/api/admin/test-printful')
+      if (res.ok) setConnectionStatus('ok')
+      else setConnectionStatus('fail')
+    } catch {
+      setConnectionStatus('fail')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <SectionCard
+      title="Supplier Configuration"
+      description="Print-on-demand fulfillment settings."
+    >
+      <div className="space-y-4">
+        <div className="flex items-start justify-between p-4 border border-warm-gray">
+          <div>
+            <p className="font-body text-sm font-medium text-charcoal">Printful</p>
+            <p className="font-body text-xs text-charcoal/50 mt-0.5">
+              Active print-on-demand supplier
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {connectionStatus === 'ok' && (
+              <span className="flex items-center gap-1 text-xs text-green-700 font-body">
+                <CheckCircle className="h-4 w-4" /> Connected
+              </span>
+            )}
+            {connectionStatus === 'fail' && (
+              <span className="flex items-center gap-1 text-xs text-red-600 font-body">
+                <XCircle className="h-4 w-4" /> Failed
+              </span>
+            )}
+            <button
+              onClick={testConnection}
+              disabled={testing}
+              className="flex items-center gap-1.5 font-body text-xs font-medium px-3 py-1.5 border border-charcoal/20 text-charcoal hover:bg-charcoal/5 transition-colors disabled:opacity-50"
+            >
+              {testing && <Loader2 className="h-3 w-3 animate-spin" />}
+              Test Connection
+            </button>
+          </div>
+        </div>
+        <p className="font-body text-xs text-charcoal/40">
+          API keys are configured via environment variables. Contact your developer to update
+          credentials.
+        </p>
+      </div>
+    </SectionCard>
+  )
+}
+
+// ─── Admin Users Section ───────────────────────────────────────────────────────
+
+function AdminUsersSection() {
+  const supabase = createClient()
+  const [admins, setAdmins] = useState<Profile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentRole, setCurrentRole] = useState<string | null>(null)
+
+  const fetchAdmins = useCallback(async () => {
+    const [{ data: profileData }, { data: adminList }] = await Promise.all([
+      supabase.auth.getUser().then(async ({ data }) => {
+        if (!data.user) return { data: null }
+        return supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single()
+      }),
+      supabase
+        .from('profiles')
+        .select('*')
+        .in('role', ['admin', 'super_admin'])
+        .order('created_at'),
+    ])
+    setCurrentRole((profileData as { role?: string } | null)?.role ?? null)
+    setAdmins(adminList ?? [])
+    setLoading(false)
+  }, [supabase])
+
+  useEffect(() => {
+    fetchAdmins()
+  }, [fetchAdmins])
+
+  const updateRole = async (userId: string, role: Profile['role']) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role })
+      .eq('id', userId)
+    if (error) return toast.error('Failed to update role')
+    toast.success('Role updated')
+    fetchAdmins()
+  }
+
+  if (currentRole !== 'super_admin') return null
+
+  return (
+    <SectionCard
+      title="Admin Users"
+      description="Manage admin access. Only visible to super admins."
+    >
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-12 bg-charcoal/5 rounded animate-pulse" />
+          ))}
+        </div>
+      ) : admins.length === 0 ? (
+        <p className="font-body text-sm text-charcoal/40">No admins found.</p>
+      ) : (
+        <div className="divide-y divide-warm-gray border border-warm-gray">
+          {admins.map((admin) => (
+            <div key={admin.id} className="flex items-center justify-between px-4 py-3">
+              <div>
+                <p className="font-body text-sm font-medium text-charcoal">
+                  {admin.full_name ?? admin.email ?? 'Unknown'}
+                </p>
+                <p className="font-body text-xs text-charcoal/50">{admin.email}</p>
+              </div>
+              <select
+                value={admin.role}
+                onChange={(e) => updateRole(admin.id, e.target.value as Profile['role'])}
+                className="px-2 py-1.5 border border-charcoal/20 font-body text-xs focus:outline-none focus:border-gold"
+              >
+                <option value="customer">Customer (demote)</option>
+                <option value="admin">Admin</option>
+                <option value="super_admin">Super Admin</option>
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────────
+
+// Note: metadata must be exported from a server component, so we skip it here
+// and rely on the page title from the browser tab via the layout.
 
 export default function AdminSettingsPage() {
   return (
     <div>
       <div className="mb-8">
         <h1 className="font-display text-3xl text-charcoal mb-1">Settings</h1>
-        <p className="font-body text-sm text-charcoal/50">Configure your store settings.</p>
+        <p className="font-body text-sm text-charcoal/50">Configure your store.</p>
       </div>
 
-      <div className="bg-white border border-warm-gray p-6 max-w-2xl">
-        <h2 className="font-display text-xl text-charcoal mb-4">Site Settings</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block font-body text-sm font-medium text-charcoal mb-1.5">
-              Announcement Bar Text
-            </label>
-            <input
-              type="text"
-              defaultValue="Free shipping on orders over $75 | Use code GLORY10 for 10% off your first order"
-              className="w-full px-4 py-3 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
-              readOnly
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block font-body text-sm font-medium text-charcoal mb-1.5">
-                Free Shipping Threshold ($)
-              </label>
-              <input
-                type="number"
-                defaultValue={75}
-                className="w-full px-4 py-3 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
-                readOnly
-              />
-            </div>
-            <div>
-              <label className="block font-body text-sm font-medium text-charcoal mb-1.5">
-                Tax Rate (%)
-              </label>
-              <input
-                type="number"
-                defaultValue={8.75}
-                className="w-full px-4 py-3 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
-                readOnly
-              />
-            </div>
-          </div>
-          <p className="font-body text-xs text-charcoal/40">
-            Settings management coming in Phase 2.
-          </p>
-        </div>
+      <div className="space-y-8">
+        <SiteSettingsSection />
+        <HomepageContentSection />
+        <SupplierConfigSection />
+        <AdminUsersSection />
       </div>
     </div>
   )
