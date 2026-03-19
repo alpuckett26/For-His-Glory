@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { Instagram, Music2 } from 'lucide-react'
 import { BRAND_NAME, BRAND_TAGLINE, SOCIAL_LINKS } from '@/lib/constants'

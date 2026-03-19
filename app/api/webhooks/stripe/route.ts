@@ -40,7 +40,7 @@ async function processWebhookEvent(event: Stripe.Event) {
 
   switch (event.type) {
     case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.CheckoutSession
+      const session = event.data.object as Stripe.Checkout.Session
 
       // Update order status to paid
       const { data: order } = await supabase

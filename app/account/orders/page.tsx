@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatPrice } from '@/lib/utils'
 import { ORDER_STATUSES } from '@/lib/constants'
 import type { Metadata } from 'next'
+import type { OrderItem, SupplierOrder } from '@/types'
 
 export const metadata: Metadata = {
   title: 'My Orders',
@@ -67,7 +68,7 @@ export default async function OrdersPage() {
               {/* Order items */}
               <div className="p-5">
                 <div className="space-y-2">
-                  {order.items?.map((item) => (
+                  {order.items?.map((item: OrderItem) => (
                     <div key={item.id} className="flex justify-between text-sm font-body">
                       <span className="text-charcoal">
                         {item.title} — {item.size} / {item.color} × {item.quantity}
@@ -80,7 +81,7 @@ export default async function OrdersPage() {
                 </div>
 
                 {/* Tracking info */}
-                {order.supplier_orders?.map((so) => (
+                {order.supplier_orders?.map((so: SupplierOrder) => (
                   so.tracking_url && (
                     <div key={so.id} className="mt-4 pt-4 border-t border-warm-gray">
                       <a

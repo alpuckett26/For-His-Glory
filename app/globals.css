@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Font CSS variables — loaded via <link> in layout.tsx */
+:root {
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}
+
 :root {
   --ivory: #FAF8F4;
   --charcoal: #1C1C1E;

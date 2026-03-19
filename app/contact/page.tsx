@@ -22,7 +22,7 @@ const faqItems = [
   },
   {
     question: 'Can I track my order?',
-    answer: 'Yes. Once your order ships, you'll receive a tracking number by email. You can also view your order status in your account dashboard.',
+    answer: "Yes. Once your order ships, you'll receive a tracking number by email. You can also view your order status in your account dashboard.",
   },
   {
     question: 'What sizes do you carry?',
