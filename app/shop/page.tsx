@@ -60,7 +60,7 @@ async function ShopContent({ searchParams }: ShopPageProps) {
   return (
     <div className="flex gap-10">
       <Suspense>
-        <FilterSidebar collections={collections as never[]} />
+        <FilterSidebar collections={collections as unknown as never[]} />
       </Suspense>
 
       <div className="flex-1">

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { sql } from '@/lib/db'
 import { ProductGrid } from '@/components/shop/ProductGrid'
 import type { Metadata } from 'next'
+import type { Product } from '@/types'
 
 interface CollectionPageProps {
   params: Promise<{ slug: string }>
@@ -74,7 +75,7 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
             {collectionProducts.length} {collectionProducts.length === 1 ? 'piece' : 'pieces'}
           </p>
         </div>
-        <ProductGrid products={collectionProducts as never[]} />
+        <ProductGrid products={collectionProducts as unknown as Product[]} />
       </div>
     </div>
   )
