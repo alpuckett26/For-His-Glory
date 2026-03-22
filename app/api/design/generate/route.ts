@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
+import { v2 as cloudinary } from 'cloudinary'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+cloudinary.config({ cloudinary_url: process.env.CLOUDINARY_URL })
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,12 +53,18 @@ Respond with ONLY the image generation prompt, nothing else.`,
       style: 'vivid',
     })
 
-    const imageUrl = image.data?.[0]?.url
-    if (!imageUrl) {
+    const tempUrl = image.data?.[0]?.url
+    if (!tempUrl) {
       return NextResponse.json({ error: 'Image generation failed' }, { status: 500 })
     }
 
-    return NextResponse.json({ imageUrl, refinedPrompt: imagePrompt })
+    // Step 3: Upload to Cloudinary for permanent storage
+    const upload = await cloudinary.uploader.upload(tempUrl, {
+      folder: 'for-his-glory/designs',
+      resource_type: 'image',
+    })
+
+    return NextResponse.json({ imageUrl: upload.secure_url, refinedPrompt: imagePrompt })
   } catch (error) {
     console.error('Design generation error:', error)
     return NextResponse.json(
