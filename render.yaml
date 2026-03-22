@@ -29,7 +29,11 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      - key: CLOUDINARY_URL
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
         sync: false
       - key: NEXT_PUBLIC_BRAND_NAME
         value: For His Glory
