@@ -50,7 +50,7 @@ async function ShopContent({ searchParams }: ShopPageProps) {
     sql`SELECT * FROM collections WHERE active = true ORDER BY sort_order`,
   ])
 
-  let filteredProducts = allProducts as Product[]
+  let filteredProducts = allProducts as unknown as Product[]
   if (params.size) {
     filteredProducts = filteredProducts.filter((p) =>
       p.variants?.some((v) => v.size === params.size && v.active)
