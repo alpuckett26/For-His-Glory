@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import {
-  Loader2, Sparkles, Trash2, Type, Eye, Save, RefreshCw, X
+  Loader2, Sparkles, Trash2, Type, Eye, Save, RefreshCw, X, ChevronDown
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { slugify } from '@/lib/utils'
@@ -13,8 +13,33 @@ import type { Collection } from '@/types'
 // Canvas must be client-only — no SSR
 const DesignCanvas = dynamic(
   () => import('@/components/design/DesignCanvas').then((m) => m.DesignCanvas),
-  { ssr: false, loading: () => <div className="w-[512px] h-[512px] bg-warm-gray border border-charcoal/20 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-charcoal/30" /></div> }
+  { ssr: false, loading: () => <div className="w-full aspect-square max-w-[512px] bg-warm-gray border border-charcoal/20 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-charcoal/30" /></div> }
 )
+
+// Collapsible section — always open on desktop, toggleable on mobile
+function Section({
+  title, open, onToggle, children,
+}: { title: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center justify-between w-full lg:cursor-default lg:pointer-events-none mb-3"
+      >
+        <h2 className="font-body text-xs font-semibold uppercase tracking-wider text-charcoal/40">
+          {title}
+        </h2>
+        <ChevronDown
+          className={`h-4 w-4 text-charcoal/40 transition-transform lg:hidden ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <div className={`${open ? 'block' : 'hidden'} lg:block space-y-3`}>
+        {children}
+      </div>
+    </div>
+  )
+}
 
 const SHIRT_COLORS = [
   { label: 'Black',    value: 'black',    hex: '#1C1C1E' },
@@ -36,6 +61,16 @@ const FONTS = [
 
 export default function AdminDesignPage() {
   const canvasRef = useRef<DesignCanvasRef>(null)
+
+  // Responsive canvas size — computed once on mount
+  const [canvasSize] = useState<number>(() =>
+    typeof window !== 'undefined' ? Math.min(512, window.innerWidth - 32) : 512
+  )
+
+  // Mobile collapsible sections (always open on desktop via CSS)
+  const [aiOpen, setAiOpen] = useState(true)
+  const [textOpen, setTextOpen] = useState(false)
+  const [productOpen, setProductOpen] = useState(false)
 
   // AI generation
   const [prompt, setPrompt] = useState('')
@@ -227,15 +262,12 @@ export default function AdminDesignPage() {
         </p>
       </div>
 
-      <div className="flex gap-8 items-start">
-        {/* ── Left sidebar ── */}
-        <div className="w-80 shrink-0 space-y-6">
+      <div className="flex flex-col lg:flex-row lg:gap-8 lg:items-start gap-4">
 
-          {/* AI Generation */}
-          <section className="space-y-3">
-            <h2 className="font-body text-xs font-semibold uppercase tracking-wider text-charcoal/40">
-              AI Artwork
-            </h2>
+        {/* ── Left sidebar ── */}
+        <div className="lg:w-80 lg:shrink-0 space-y-5 bg-warm-gray lg:bg-transparent p-4 lg:p-0 rounded-sm lg:rounded-none">
+
+          <Section title="AI Artwork" open={aiOpen} onToggle={() => setAiOpen((v) => !v)}>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -253,17 +285,13 @@ export default function AdminDesignPage() {
                 : <><Sparkles className="h-4 w-4" /> Generate Artwork</>}
             </button>
             {refinedPrompt && (
-              <div className="p-2.5 bg-warm-gray border-l-2 border-gold">
+              <div className="p-2.5 bg-white/60 border-l-2 border-gold">
                 <p className="font-body text-xs text-charcoal/50 leading-relaxed line-clamp-3">{refinedPrompt}</p>
               </div>
             )}
-          </section>
+          </Section>
 
-          {/* Text Tool */}
-          <section className="space-y-3">
-            <h2 className="font-body text-xs font-semibold uppercase tracking-wider text-charcoal/40">
-              Add Text
-            </h2>
+          <Section title="Add Text" open={textOpen} onToggle={() => setTextOpen((v) => !v)}>
             <input
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
@@ -289,8 +317,7 @@ export default function AdminDesignPage() {
                   type="number"
                   value={textSize}
                   onChange={(e) => setTextSize(Number(e.target.value))}
-                  min={12}
-                  max={120}
+                  min={12} max={120}
                   className="w-full px-2 py-1.5 border border-charcoal/20 font-body text-xs focus:outline-none focus:border-gold"
                 />
               </div>
@@ -310,16 +337,11 @@ export default function AdminDesignPage() {
               disabled={!textInput.trim()}
               className="w-full flex items-center justify-center gap-2 border border-charcoal text-charcoal font-body text-sm py-2 hover:bg-charcoal hover:text-ivory transition-colors disabled:opacity-40"
             >
-              <Type className="h-4 w-4" />
-              Add to Canvas
+              <Type className="h-4 w-4" /> Add to Canvas
             </button>
-          </section>
+          </Section>
 
-          {/* Canvas Actions */}
-          <section className="space-y-2">
-            <h2 className="font-body text-xs font-semibold uppercase tracking-wider text-charcoal/40">
-              Canvas
-            </h2>
+          <Section title="Canvas" open={true} onToggle={() => {}}>
             <div className="flex gap-2">
               <button
                 onClick={() => canvasRef.current?.deleteSelected()}
@@ -328,43 +350,31 @@ export default function AdminDesignPage() {
                 <Trash2 className="h-3.5 w-3.5" /> Delete Selected
               </button>
               <button
-                onClick={() => {
-                  canvasRef.current?.clear()
-                  setDesignUrl(null)
-                  setMockupUrl(null)
-                }}
+                onClick={() => { canvasRef.current?.clear(); setDesignUrl(null); setMockupUrl(null) }}
                 className="flex items-center justify-center gap-1.5 px-3 py-2 border border-charcoal/20 font-body text-xs text-charcoal hover:border-charcoal transition-colors"
               >
                 <X className="h-3.5 w-3.5" /> Clear
               </button>
             </div>
             <p className="font-body text-xs text-charcoal/30">
-              Tip: click to select objects, drag to move, Delete key removes selected.
+              Tap to select, drag to move, Delete key removes selected.
             </p>
-          </section>
+          </Section>
 
-          {/* Shirt Color */}
-          <section className="space-y-2">
-            <h2 className="font-body text-xs font-semibold uppercase tracking-wider text-charcoal/40">
-              Shirt Color
-            </h2>
+          <Section title="Shirt Color" open={true} onToggle={() => {}}>
             <div className="flex gap-2">
               {SHIRT_COLORS.map((color) => (
                 <button
                   key={color.value}
-                  onClick={() => {
-                    setShirtColor(color)
-                    if (designUrl) fetchMockup(designUrl, color.value)
-                  }}
+                  onClick={() => { setShirtColor(color); if (designUrl) fetchMockup(designUrl, color.value) }}
                   title={color.label}
                   className={`w-8 h-8 rounded-full border-2 transition-all ${shirtColor.value === color.value ? 'border-gold scale-110' : 'border-charcoal/20'}`}
                   style={{ backgroundColor: color.hex }}
                 />
               ))}
             </div>
-          </section>
+          </Section>
 
-          {/* Preview on Shirt */}
           <button
             onClick={exportAndPreview}
             disabled={exporting || loadingMockup}
@@ -376,11 +386,10 @@ export default function AdminDesignPage() {
           </button>
         </div>
 
-        {/* ── Center: Canvas ── */}
-        <div className="flex flex-col gap-6 flex-1">
-          <DesignCanvas ref={canvasRef} size={512} />
+        {/* ── Center: Canvas + Mockup ── */}
+        <div className="flex flex-col gap-6 flex-1 min-w-0">
+          <DesignCanvas ref={canvasRef} size={canvasSize} />
 
-          {/* Mockup preview */}
           {(loadingMockup || mockupUrl) && (
             <div className="space-y-3">
               <h2 className="font-body text-xs font-semibold uppercase tracking-wider text-charcoal/40">
@@ -403,95 +412,94 @@ export default function AdminDesignPage() {
         </div>
 
         {/* ── Right: Product Details ── */}
-        <div className="w-72 shrink-0 space-y-5">
-          <h2 className="font-body text-xs font-semibold uppercase tracking-wider text-charcoal/40">
-            Product Details
-          </h2>
+        <div className="lg:w-72 lg:shrink-0 space-y-5 bg-warm-gray lg:bg-transparent p-4 lg:p-0 rounded-sm lg:rounded-none">
 
-          <div>
-            <label className="block font-body text-xs text-charcoal/60 mb-1">Title</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Product title"
-              className="w-full px-3 py-2 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          <Section title="Product Details" open={productOpen} onToggle={() => setProductOpen((v) => !v)}>
             <div>
-              <label className="block font-body text-xs text-charcoal/60 mb-1">Price ($)</label>
+              <label className="block font-body text-xs text-charcoal/60 mb-1">Title</label>
               <input
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Product title"
                 className="w-full px-3 py-2 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
               />
             </div>
-            <div>
-              <label className="block font-body text-xs text-charcoal/60 mb-1">Collection</label>
-              <select
-                value={collectionId}
-                onChange={(e) => setCollectionId(e.target.value)}
-                className="w-full px-3 py-2 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
-              >
-                <option value="">None</option>
-                {collections.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
 
-          <div>
-            <label className="block font-body text-xs text-charcoal/60 mb-2">Sizes</label>
-            <div className="flex flex-wrap gap-1.5">
-              {SIZES.map((size) => (
-                <button
-                  key={size}
-                  onClick={() => toggleSize(size)}
-                  className={`px-2.5 py-1 font-body text-xs font-medium border transition-colors ${
-                    selectedSizes.includes(size)
-                      ? 'bg-charcoal text-ivory border-charcoal'
-                      : 'border-charcoal/20 text-charcoal hover:border-charcoal'
-                  }`}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-body text-xs text-charcoal/60 mb-1">Price ($)</label>
+                <input
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="w-full px-3 py-2 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block font-body text-xs text-charcoal/60 mb-1">Collection</label>
+                <select
+                  value={collectionId}
+                  onChange={(e) => setCollectionId(e.target.value)}
+                  className="w-full px-3 py-2 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
                 >
-                  {size}
-                </button>
-              ))}
+                  <option value="">None</option>
+                  {collections.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
 
-          <div className="pt-2 space-y-2">
-            <button
-              onClick={saveAsProduct}
-              disabled={saving || !designUrl}
-              className="w-full flex items-center justify-center gap-2 bg-charcoal text-ivory font-body text-sm font-medium py-3 hover:bg-charcoal/80 transition-colors disabled:opacity-50"
-            >
-              {saving
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Publishing…</>
-                : <><Save className="h-4 w-4" /> Publish to Store</>}
-            </button>
-            <button
-              onClick={() => {
-                canvasRef.current?.clear()
-                setDesignUrl(null)
-                setMockupUrl(null)
-                setPrompt('')
-                setRefinedPrompt(null)
-                setTitle('')
-              }}
-              className="w-full flex items-center justify-center gap-2 border border-charcoal/20 text-charcoal font-body text-xs py-2 hover:border-charcoal transition-colors"
-            >
-              <RefreshCw className="h-3.5 w-3.5" /> Start Over
-            </button>
-          </div>
+            <div>
+              <label className="block font-body text-xs text-charcoal/60 mb-2">Sizes</label>
+              <div className="flex flex-wrap gap-1.5">
+                {SIZES.map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => toggleSize(size)}
+                    className={`px-2.5 py-1 font-body text-xs font-medium border transition-colors ${
+                      selectedSizes.includes(size)
+                        ? 'bg-charcoal text-ivory border-charcoal'
+                        : 'border-charcoal/20 text-charcoal hover:border-charcoal'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          {!designUrl && (
-            <p className="font-body text-xs text-charcoal/40 pt-1">
-              Click &ldquo;Preview on Shirt&rdquo; to generate the mockup before publishing.
-            </p>
-          )}
+            <div className="pt-2 space-y-2">
+              <button
+                onClick={saveAsProduct}
+                disabled={saving || !designUrl}
+                className="w-full flex items-center justify-center gap-2 bg-charcoal text-ivory font-body text-sm font-medium py-3 hover:bg-charcoal/80 transition-colors disabled:opacity-50"
+              >
+                {saving
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Publishing…</>
+                  : <><Save className="h-4 w-4" /> Publish to Store</>}
+              </button>
+              <button
+                onClick={() => {
+                  canvasRef.current?.clear()
+                  setDesignUrl(null)
+                  setMockupUrl(null)
+                  setPrompt('')
+                  setRefinedPrompt(null)
+                  setTitle('')
+                }}
+                className="w-full flex items-center justify-center gap-2 border border-charcoal/20 text-charcoal font-body text-xs py-2 hover:border-charcoal transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Start Over
+              </button>
+            </div>
+
+            {!designUrl && (
+              <p className="font-body text-xs text-charcoal/40 pt-1">
+                Preview on Shirt before publishing.
+              </p>
+            )}
+          </Section>
         </div>
       </div>
     </div>
