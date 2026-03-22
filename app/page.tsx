@@ -6,6 +6,7 @@ import { MissionSection } from '@/components/home/MissionSection'
 import { Testimonials } from '@/components/home/Testimonials'
 import { BulkOrdersCTA } from '@/components/home/BulkOrdersCTA'
 import { NewsletterSignup } from '@/components/home/NewsletterSignup'
+import type { Collection, Product } from '@/types'
 
 export default async function HomePage() {
   const [collections, featuredProducts] = await Promise.all([
@@ -28,8 +29,8 @@ export default async function HomePage() {
   return (
     <>
       <Hero />
-      <FeaturedCollections collections={collections} />
-      <BestSellers products={featuredProducts} />
+      <FeaturedCollections collections={collections as unknown as Collection[]} />
+      <BestSellers products={featuredProducts as unknown as Product[]} />
       <MissionSection />
       <Testimonials />
       <BulkOrdersCTA />
