@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { sql } from '@/lib/db'
 import { Hero } from '@/components/home/Hero'
 import { FeaturedCollections } from '@/components/home/FeaturedCollections'

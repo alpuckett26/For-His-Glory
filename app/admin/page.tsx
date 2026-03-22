@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { sql } from '@/lib/db'
 import { StatCard } from '@/components/admin/StatCard'
 import { StatusBadge } from '@/components/admin/StatusBadge'

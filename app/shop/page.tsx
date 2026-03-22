@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { Suspense } from 'react'
 import { sql } from '@/lib/db'
 import { ProductGrid } from '@/components/shop/ProductGrid'

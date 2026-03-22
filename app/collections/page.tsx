@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { sql } from '@/lib/db'
 import Link from 'next/link'
 import Image from 'next/image'
