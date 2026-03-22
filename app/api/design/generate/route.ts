@@ -6,8 +6,6 @@ import { v2 as cloudinary } from 'cloudinary'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
-cloudinary.config({ cloudinary_url: process.env.CLOUDINARY_URL })
-
 export async function POST(request: NextRequest) {
   try {
     const { prompt } = await request.json()
@@ -59,6 +57,7 @@ Respond with ONLY the image generation prompt, nothing else.`,
     }
 
     // Step 3: Upload to Cloudinary for permanent storage
+    cloudinary.config({ cloudinary_url: process.env.CLOUDINARY_URL })
     const upload = await cloudinary.uploader.upload(tempUrl, {
       folder: 'for-his-glory/designs',
       resource_type: 'image',
