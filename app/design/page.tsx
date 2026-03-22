@@ -30,7 +30,35 @@ export default function DesignPage() {
   const [refinedPrompt, setRefinedPrompt] = useState<string | null>(null)
   const [shirtColor, setShirtColor] = useState(SHIRT_COLORS[0])
   const [selectedSize, setSelectedSize] = useState('M')
+  const [scriptureText, setScriptureText] = useState('')
+  const [mockupUrl, setMockupUrl] = useState<string | null>(null)
+  const [loadingMockup, setLoadingMockup] = useState(false)
+  const [mockupCache, setMockupCache] = useState<Record<string, string>>({})
   const { addToCart: addItem } = useCart()
+
+  const fetchMockup = async (designUrl: string, colorValue: string) => {
+    const key = `${designUrl}::${colorValue}`
+    if (mockupCache[key]) {
+      setMockupUrl(mockupCache[key])
+      return
+    }
+    setMockupUrl(null)
+    setLoadingMockup(true)
+    try {
+      const res = await fetch('/api/design/mockup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ designUrl, color: colorValue }),
+      })
+      if (res.ok) {
+        const { mockupUrl: url } = await res.json()
+        setMockupUrl(url)
+        setMockupCache((prev) => ({ ...prev, [key]: url }))
+      }
+    } finally {
+      setLoadingMockup(false)
+    }
+  }
 
   const generate = async (usePrompt?: string) => {
     const text = usePrompt ?? prompt
@@ -55,6 +83,10 @@ export default function DesignPage() {
       const data = await res.json()
       setImageUrl(data.imageUrl)
       setRefinedPrompt(data.refinedPrompt)
+      if (data.scriptureText) setScriptureText(data.scriptureText)
+      setMockupUrl(null)
+      setMockupCache({})
+      fetchMockup(data.imageUrl, shirtColor.value)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -67,7 +99,7 @@ export default function DesignPage() {
     addItem({
       productId: 'custom-design',
       variantId: `custom-${shirtColor.value}-${selectedSize}-${Date.now()}`,
-      title: 'Custom AI Design',
+      title: scriptureText ? `Custom Design — ${scriptureText}` : 'Custom AI Design',
       price: 34.99,
       size: selectedSize,
       color: shirtColor.label,
@@ -147,6 +179,23 @@ export default function DesignPage() {
             )}
           </button>
 
+          {/* Scripture / text overlay */}
+          <div>
+            <label className="block font-body text-sm font-medium text-charcoal mb-2">
+              Scripture or text on shirt <span className="text-charcoal/40 font-normal">(optional)</span>
+            </label>
+            <input
+              value={scriptureText}
+              onChange={(e) => setScriptureText(e.target.value)}
+              maxLength={40}
+              placeholder="e.g. Philippians 4:13 or He Is Risen"
+              className="w-full px-4 py-2.5 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
+            />
+            <p className="font-body text-xs text-charcoal/40 mt-1">
+              Text is added cleanly over the artwork — no AI garbling.
+            </p>
+          </div>
+
           {/* Refined prompt */}
           {refinedPrompt && (
             <div className="p-3 bg-warm-gray border-l-2 border-gold">
@@ -164,17 +213,32 @@ export default function DesignPage() {
         <div className="space-y-6">
           {/* Shirt mockup */}
           <div className="relative flex items-center justify-center bg-warm-gray p-4">
-            {generating && (
+            {(generating || loadingMockup) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-warm-gray z-10">
                 <Loader2 className="h-8 w-8 animate-spin mb-3 text-charcoal/40" />
-                <p className="font-body text-xs text-charcoal/40">Creating your design…</p>
+                <p className="font-body text-xs text-charcoal/40">
+                  {generating ? 'Creating your design…' : 'Rendering on shirt…'}
+                </p>
               </div>
             )}
-            <ShirtMockup
-              color={shirtColor.hex}
-              designUrl={imageUrl}
-              size={380}
-            />
+            <div className="relative inline-block">
+              <ShirtMockup
+                color={shirtColor.hex}
+                designUrl={imageUrl}
+                mockupUrl={mockupUrl}
+                size={380}
+              />
+              {scriptureText && mockupUrl && (
+                <div className="absolute bottom-12 left-0 right-0 flex justify-center pointer-events-none">
+                  <span
+                    className="font-display text-sm font-bold tracking-wide text-center px-2"
+                    style={{ color: shirtColor.hex === '#FAF8F4' ? '#1C1C1E' : '#FAF8F4', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}
+                  >
+                    {scriptureText}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Shirt color picker */}
@@ -186,7 +250,10 @@ export default function DesignPage() {
               {SHIRT_COLORS.map((color) => (
                 <button
                   key={color.value}
-                  onClick={() => setShirtColor(color)}
+                  onClick={() => {
+                    setShirtColor(color)
+                    if (imageUrl) fetchMockup(imageUrl, color.value)
+                  }}
                   title={color.label}
                   className={`w-8 h-8 rounded-full border-2 transition-all ${shirtColor.value === color.value ? 'border-gold scale-110' : 'border-charcoal/20'}`}
                   style={{ backgroundColor: color.hex }}

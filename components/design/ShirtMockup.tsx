@@ -10,12 +10,26 @@ function isDark(hex: string): boolean {
 }
 
 interface ShirtMockupProps {
-  color: string    // hex color
+  color: string         // hex color
   designUrl?: string | null
-  size?: number    // width in px, height is auto
+  mockupUrl?: string | null  // Printful photorealistic mockup — shown when available
+  size?: number         // width in px, height is auto
 }
 
-export function ShirtMockup({ color, designUrl, size = 400 }: ShirtMockupProps) {
+export function ShirtMockup({ color, designUrl, mockupUrl, size = 400 }: ShirtMockupProps) {
+  // Show Printful photorealistic mockup when available
+  if (mockupUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={mockupUrl}
+        alt="Shirt mockup"
+        width={size}
+        style={{ display: 'block', height: 'auto' }}
+      />
+    )
+  }
+
   const dark = isDark(color)
   // blend-multiply removes white bg on light shirts
   // blend-screen removes black bg on dark shirts (inverts design colors on dark)
