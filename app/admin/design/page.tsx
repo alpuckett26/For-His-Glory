@@ -141,25 +141,32 @@ export default function AdminDesignPage() {
   const exportAndPreview = async () => {
     const dataUrl = canvasRef.current?.getDataUrl()
     if (!dataUrl) return toast.error('Canvas is empty — add a design first')
+
+    // Step 1 — upload canvas to Cloudinary
     setExporting(true)
+    let imageUrl: string
     try {
       const res = await fetch('/api/design/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dataUrl }),
       })
-      if (!res.ok) throw new Error('Export failed')
-      const { imageUrl } = await res.json()
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? 'Export failed')
+      imageUrl = body.imageUrl
       setDesignUrl(imageUrl)
       setMockupUrl(null)
       setFrontMockupUrl(null)
       setMockupCache({})
-      await fetchMockup(imageUrl, shirtColor.value)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Export failed')
-    } finally {
       setExporting(false)
+      return
     }
+    setExporting(false)
+
+    // Step 2 — generate Printful shirt mockup
+    await fetchMockup(imageUrl, shirtColor.value)
   }
 
   const fetchMockup = async (dUrl: string, colorValue: string) => {
@@ -176,12 +183,13 @@ export default function AdminDesignPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ designUrl: dUrl, color: colorValue }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setMockupUrl(data.mockupUrl)
-        setFrontMockupUrl(data.frontMockupUrl ?? null)
-        setMockupCache((prev) => ({ ...prev, [key]: data.mockupUrl }))
-      }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Mockup generation failed')
+      setMockupUrl(data.mockupUrl)
+      setFrontMockupUrl(data.frontMockupUrl ?? null)
+      setMockupCache((prev) => ({ ...prev, [key]: data.mockupUrl }))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Shirt preview failed')
     } finally {
       setLoadingMockup(false)
     }

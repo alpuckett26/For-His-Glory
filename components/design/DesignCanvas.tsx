@@ -119,14 +119,10 @@ export const DesignCanvas = forwardRef<DesignCanvasRef, Props>(
         fabricRef.current?.renderAll()
       },
 
-      // Export as PNG with transparency — white background not baked in
+      // Export as PNG with transparency — no white background baked in
       getDataUrl: () => {
         if (!fabricRef.current) return null
-        // Temporarily remove background so export is transparent
-        fabricRef.current.set({ backgroundColor: 'transparent' })
-        fabricRef.current.renderAll()
-        const dataUrl = fabricRef.current.toDataURL({ format: 'png', multiplier: 2 })
-        return dataUrl
+        return fabricRef.current.toDataURL({ format: 'png' }) as string
       },
     }))
 
