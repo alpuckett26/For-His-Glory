@@ -46,6 +46,7 @@ export const SOCIAL_LINKS = {
 export const NAV_LINKS = [
   { href: '/shop', label: 'Shop' },
   { href: '/collections', label: 'Collections' },
+  { href: '/design', label: 'Design Yours' },
   { href: '/about', label: 'About' },
   { href: '/bulk-orders', label: 'Bulk Orders' },
 ] as const

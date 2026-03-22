@@ -25,6 +25,10 @@ services:
         sync: false
       - key: PRINTFUL_STORE_ID
         sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
       - key: NEXT_PUBLIC_BRAND_NAME
         value: For His Glory
       - key: NEXT_PUBLIC_BRAND_TAGLINE

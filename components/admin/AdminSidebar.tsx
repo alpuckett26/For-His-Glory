@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Settings,
   LogOut,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { signOut } from 'next-auth/react'
@@ -38,6 +39,7 @@ export function AdminSidebar({ badgeCounts }: AdminSidebarProps) {
   const navItems: NavItem[] = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/products', label: 'Products', icon: Package },
+    { href: '/admin/design', label: 'AI Design Studio', icon: Sparkles },
     { href: '/admin/collections', label: 'Collections', icon: FolderOpen },
     { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
     {
