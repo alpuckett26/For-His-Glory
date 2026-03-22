@@ -31,7 +31,7 @@ export default function DesignPage() {
   const [refinedPrompt, setRefinedPrompt] = useState<string | null>(null)
   const [shirtColor, setShirtColor] = useState(SHIRT_COLORS[0])
   const [selectedSize, setSelectedSize] = useState('M')
-  const { addItem } = useCart()
+  const { addToCart: addItem } = useCart()
 
   const generate = async (usePrompt?: string) => {
     const text = usePrompt ?? prompt
