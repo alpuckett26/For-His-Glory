@@ -245,7 +245,7 @@ export default function AdminCollectionsPage() {
     const res = await fetch('/api/admin/collections', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: col.id, ...col, active: !col.active }),
+      body: JSON.stringify({ ...col, active: !col.active }),
     })
     if (!res.ok) return toast.error('Failed to update')
     fetchData()
@@ -255,7 +255,7 @@ export default function AdminCollectionsPage() {
     const res = await fetch('/api/admin/collections', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: col.id, ...col, featured: !col.featured }),
+      body: JSON.stringify({ ...col, featured: !col.featured }),
     })
     if (!res.ok) return toast.error('Failed to update')
     fetchData()
