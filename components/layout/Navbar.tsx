@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ShoppingBag, User, Menu, X } from 'lucide-react'
+import { ShoppingBag, User, Menu, LayoutDashboard } from 'lucide-react'
 import { useCart } from '@/hooks/useCart'
 import { useAuth } from '@/hooks/useAuth'
 import { NAV_LINKS } from '@/lib/constants'
@@ -13,7 +13,7 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { itemCount } = useCart()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -58,6 +58,16 @@ export function Navbar() {
 
             {/* Right actions */}
             <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 font-body text-xs font-semibold uppercase tracking-wider text-gold border border-gold/40 hover:bg-gold hover:text-white transition-colors"
+                  aria-label="Admin"
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  Admin
+                </Link>
+              )}
               <Link
                 href={user ? '/account' : '/sign-in'}
                 className="p-2 text-charcoal hover:text-gold transition-colors"
@@ -95,6 +105,7 @@ export function Navbar() {
         isOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
         user={user}
+        isAdmin={isAdmin}
       />
     </>
   )
