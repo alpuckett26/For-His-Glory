@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { X, User, ShoppingBag, LayoutDashboard } from 'lucide-react'
+import { X, User, ShoppingBag, LayoutDashboard, LogOut } from 'lucide-react'
 import { NAV_LINKS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
@@ -11,9 +11,10 @@ interface MobileMenuProps {
   onClose: () => void
   user: { id?: string; email?: string | null } | null
   isAdmin?: boolean
+  onSignOut?: () => void
 }
 
-export function MobileMenu({ isOpen, onClose, user, isAdmin }: MobileMenuProps) {
+export function MobileMenu({ isOpen, onClose, user, isAdmin, onSignOut }: MobileMenuProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -94,6 +95,15 @@ export function MobileMenu({ isOpen, onClose, user, isAdmin }: MobileMenuProps) 
                 <LayoutDashboard className="h-4 w-4" />
                 Admin Dashboard
               </Link>
+            )}
+            {user && (
+              <button
+                onClick={() => { onClose(); onSignOut?.() }}
+                className="flex items-center gap-2 py-3 font-body text-sm text-charcoal/60 hover:text-charcoal transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </button>
             )}
           </div>
         </nav>

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { ShoppingBag, User, Menu, LayoutDashboard } from 'lucide-react'
+import { ShoppingBag, User, Menu, LayoutDashboard, LogOut, Package } from 'lucide-react'
 import { useCart } from '@/hooks/useCart'
 import { useAuth } from '@/hooks/useAuth'
 import { NAV_LINKS } from '@/lib/constants'
@@ -12,8 +12,20 @@ import { MobileMenu } from './MobileMenu'
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
   const { itemCount } = useCart()
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, signOut } = useAuth()
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -68,13 +80,44 @@ export function Navbar() {
                   Admin
                 </Link>
               )}
-              <Link
-                href={user ? '/account' : '/sign-in'}
-                className="p-2 text-charcoal hover:text-gold transition-colors"
-                aria-label="Account"
-              >
-                <User className="h-5 w-5" />
-              </Link>
+              {user ? (
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    onClick={() => setUserMenuOpen((o) => !o)}
+                    className="p-2 text-charcoal hover:text-gold transition-colors"
+                    aria-label="Account"
+                  >
+                    <User className="h-5 w-5" />
+                  </button>
+                  {userMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-44 bg-ivory border border-warm-gray shadow-soft z-50">
+                      <Link
+                        href="/account"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-3 font-body text-sm text-charcoal hover:text-gold hover:bg-warm-gray transition-colors"
+                      >
+                        <Package className="h-4 w-4" />
+                        My Account
+                      </Link>
+                      <button
+                        onClick={() => { setUserMenuOpen(false); signOut() }}
+                        className="w-full flex items-center gap-2 px-4 py-3 font-body text-sm text-charcoal hover:text-gold hover:bg-warm-gray transition-colors border-t border-warm-gray"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href="/sign-in"
+                  className="p-2 text-charcoal hover:text-gold transition-colors"
+                  aria-label="Sign in"
+                >
+                  <User className="h-5 w-5" />
+                </Link>
+              )}
 
               <Link
                 href="/cart"
@@ -106,6 +149,7 @@ export function Navbar() {
         onClose={() => setMobileOpen(false)}
         user={user}
         isAdmin={isAdmin}
+        onSignOut={signOut}
       />
     </>
   )
