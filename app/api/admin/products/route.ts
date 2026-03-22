@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     VALUES (${body.title}, ${body.slug}, ${body.description ?? null}, ${body.long_description ?? null},
       ${body.brand_message ?? null}, ${body.price}, ${body.compare_at_price ?? null},
       ${body.collection_id ?? null}, ${body.featured ?? false}, ${body.active ?? true},
-      ${body.tags ? JSON.stringify(body.tags) : null})
+      ${body.tags ?? null})
     RETURNING *
   `
   return NextResponse.json(rows[0])
@@ -48,7 +48,7 @@ export async function PATCH(request: NextRequest) {
       long_description = ${fields.long_description ?? null}, brand_message = ${fields.brand_message ?? null},
       price = ${fields.price}, compare_at_price = ${fields.compare_at_price ?? null},
       collection_id = ${fields.collection_id ?? null}, featured = ${fields.featured ?? false},
-      active = ${fields.active ?? true}, tags = ${fields.tags ? JSON.stringify(fields.tags) : null},
+      active = ${fields.active ?? true}, tags = ${fields.tags ?? null},
       updated_at = NOW()
     WHERE id = ${id}
   `
