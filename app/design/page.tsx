@@ -5,7 +5,6 @@ import Image from 'next/image'
 import { Loader2, Sparkles, RefreshCw, ShoppingBag } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCart } from '@/hooks/useCart'
-import type { Metadata } from 'next'
 
 const SHIRT_COLORS = [
   { label: 'Black', value: 'black', hex: '#1C1C1E' },
