@@ -66,15 +66,15 @@ export default function DesignPage() {
   const addToCart = () => {
     if (!imageUrl) return
     addItem({
-      id: `custom-${Date.now()}`,
       productId: 'custom-design',
-      variantId: `custom-${shirtColor.value}-${selectedSize}`,
+      variantId: `custom-${shirtColor.value}-${selectedSize}-${Date.now()}`,
       title: 'Custom AI Design',
       price: 34.99,
       size: selectedSize,
       color: shirtColor.label,
       quantity: 1,
       imageUrl,
+      slug: 'custom-design',
     })
     toast.success('Added to cart!')
   }
