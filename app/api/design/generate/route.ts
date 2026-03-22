@@ -50,7 +50,7 @@ Respond with ONLY the image generation prompt, nothing else.`,
       style: 'vivid',
     })
 
-    const imageUrl = image.data[0]?.url
+    const imageUrl = image.data?.[0]?.url
     if (!imageUrl) {
       return NextResponse.json({ error: 'Image generation failed' }, { status: 500 })
     }
