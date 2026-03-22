@@ -87,6 +87,7 @@ export default function AdminDesignPage() {
   const [shirtColor, setShirtColor] = useState(SHIRT_COLORS[0])
   const [designUrl, setDesignUrl] = useState<string | null>(null)
   const [mockupUrl, setMockupUrl] = useState<string | null>(null)
+  const [frontMockupUrl, setFrontMockupUrl] = useState<string | null>(null)
   const [loadingMockup, setLoadingMockup] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [mockupCache, setMockupCache] = useState<Record<string, string>>({})
@@ -131,6 +132,10 @@ export default function AdminDesignPage() {
   const addText = () => {
     if (!textInput.trim()) return toast.error('Enter text first')
     canvasRef.current?.addText(textInput, textFont, textSize, textColor)
+    // Invalidate previous mockup — canvas changed, needs re-export
+    setMockupUrl(null)
+    setDesignUrl(null)
+    setMockupCache({})
   }
 
   const exportAndPreview = async () => {
@@ -147,6 +152,7 @@ export default function AdminDesignPage() {
       const { imageUrl } = await res.json()
       setDesignUrl(imageUrl)
       setMockupUrl(null)
+      setFrontMockupUrl(null)
       setMockupCache({})
       await fetchMockup(imageUrl, shirtColor.value)
     } catch (err) {
@@ -171,9 +177,10 @@ export default function AdminDesignPage() {
         body: JSON.stringify({ designUrl: dUrl, color: colorValue }),
       })
       if (res.ok) {
-        const { mockupUrl: url } = await res.json()
-        setMockupUrl(url)
-        setMockupCache((prev) => ({ ...prev, [key]: url }))
+        const data = await res.json()
+        setMockupUrl(data.mockupUrl)
+        setFrontMockupUrl(data.frontMockupUrl ?? null)
+        setMockupCache((prev) => ({ ...prev, [key]: data.mockupUrl }))
       }
     } finally {
       setLoadingMockup(false)
@@ -395,16 +402,30 @@ export default function AdminDesignPage() {
               <h2 className="font-body text-xs font-semibold uppercase tracking-wider text-charcoal/40">
                 Shirt Preview
               </h2>
-              <div className="relative flex items-center justify-center bg-warm-gray p-4 border border-warm-gray">
+              <div className="relative bg-warm-gray p-4 border border-warm-gray">
                 {loadingMockup && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-warm-gray z-10">
                     <Loader2 className="h-8 w-8 animate-spin mb-2 text-charcoal/40" />
                     <p className="font-body text-xs text-charcoal/40">Rendering on shirt…</p>
                   </div>
                 )}
-                {mockupUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={mockupUrl} alt="Shirt mockup" className="max-w-sm w-full" />
+                {(mockupUrl || frontMockupUrl) && (
+                  <div className="flex gap-4 justify-center">
+                    {frontMockupUrl && (
+                      <div className="text-center">
+                        <p className="font-body text-xs text-charcoal/40 mb-2">Front</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={frontMockupUrl} alt="Front — brand logo" className="max-w-[180px] w-full" />
+                      </div>
+                    )}
+                    {mockupUrl && (
+                      <div className="text-center">
+                        <p className="font-body text-xs text-charcoal/40 mb-2">Back</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={mockupUrl} alt="Back — custom design" className="max-w-[180px] w-full" />
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

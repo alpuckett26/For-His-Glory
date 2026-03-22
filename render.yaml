@@ -35,6 +35,8 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: BRAND_LOGO_URL
+        sync: false
       - key: NEXT_PUBLIC_BRAND_NAME
         value: For His Glory
       - key: NEXT_PUBLIC_BRAND_TAGLINE

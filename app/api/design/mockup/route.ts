@@ -58,6 +58,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Build print files — logo always on front left breast, custom design on back
+    const files: Array<{ type: string; url: string }> = [
+      { type: 'back', url: designUrl },
+    ]
+    if (process.env.BRAND_LOGO_URL) {
+      files.push({ type: 'front', url: process.env.BRAND_LOGO_URL })
+    }
+
     // Create mockup generation task
     const taskRes = await printfulFetch(
       `/mockup-generator/create-task/${PRODUCT_ID}`,
@@ -65,7 +73,7 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         body: JSON.stringify({
           variant_ids: [variantId],
-          files: [{ type: 'front', url: designUrl }],
+          files,
         }),
       }
     )
@@ -90,9 +98,15 @@ export async function POST(req: NextRequest) {
       const status = result.result?.status
 
       if (status === 'completed') {
-        const mockupUrl = result.result.mockups?.[0]?.mockup_url
-        if (!mockupUrl) throw new Error('No mockup URL in completed task')
-        return NextResponse.json({ mockupUrl })
+        const mockups: Array<{ placement: string; mockup_url: string }> =
+          result.result.mockups ?? []
+        const backMockup = mockups.find((m) => m.placement === 'back') ?? mockups[0]
+        const frontMockup = mockups.find((m) => m.placement === 'front')
+        if (!backMockup?.mockup_url) throw new Error('No mockup URL in completed task')
+        return NextResponse.json({
+          mockupUrl: backMockup.mockup_url,
+          frontMockupUrl: frontMockup?.mockup_url ?? null,
+        })
       }
 
       if (status === 'failed') {

@@ -14,11 +14,15 @@ interface Props {
   size?: number
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FabricModule = { FabricImage: any; IText: any }
+
 export const DesignCanvas = forwardRef<DesignCanvasRef, Props>(
   function DesignCanvas({ size = 512 }, ref) {
     const canvasEl = useRef<HTMLCanvasElement>(null)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fabricRef = useRef<any>(null)
+    const fabricModuleRef = useRef<FabricModule | null>(null)
     const [ready, setReady] = useState(false)
 
     useEffect(() => {
@@ -27,11 +31,13 @@ export const DesignCanvas = forwardRef<DesignCanvasRef, Props>(
       let instance: any = null
 
       ;(async () => {
-        const { Canvas } = await import('fabric')
-        instance = new Canvas(canvasEl.current!, {
+        const mod = await import('fabric')
+        fabricModuleRef.current = { FabricImage: mod.FabricImage, IText: mod.IText }
+
+        instance = new mod.Canvas(canvasEl.current!, {
           width: size,
           height: size,
-          backgroundColor: '#ffffff',
+          backgroundColor: 'transparent',
           selection: true,
           preserveObjectStacking: true,
         })
@@ -57,13 +63,14 @@ export const DesignCanvas = forwardRef<DesignCanvasRef, Props>(
         document.removeEventListener('keydown', handleKey)
         instance?.dispose()
         fabricRef.current = null
+        fabricModuleRef.current = null
       }
     }, [size])
 
     useImperativeHandle(ref, () => ({
       addImage: async (url: string) => {
-        if (!fabricRef.current) return
-        const { FabricImage } = await import('fabric')
+        if (!fabricRef.current || !fabricModuleRef.current) return
+        const { FabricImage } = fabricModuleRef.current
         const img = await FabricImage.fromURL(url, { crossOrigin: 'anonymous' })
         const maxDim = size * 0.78
         const w = img.width ?? maxDim
@@ -77,24 +84,24 @@ export const DesignCanvas = forwardRef<DesignCanvasRef, Props>(
         fabricRef.current.renderAll()
       },
 
+      // Fully synchronous — no async import, module already loaded
       addText: (text: string, font: string, fontSize: number, color: string) => {
-        if (!fabricRef.current) return
-        import('fabric').then(({ IText }) => {
-          const t = new IText(text, {
-            left: size / 2,
-            top: size * 0.84,
-            originX: 'center',
-            originY: 'center',
-            fontFamily: font,
-            fontSize,
-            fill: color,
-            fontWeight: 'bold',
-            textAlign: 'center',
-          })
-          fabricRef.current.add(t)
-          fabricRef.current.setActiveObject(t)
-          fabricRef.current.renderAll()
+        if (!fabricRef.current || !fabricModuleRef.current) return
+        const { IText } = fabricModuleRef.current
+        const t = new IText(text, {
+          left: size / 2,
+          top: size * 0.84,
+          originX: 'center',
+          originY: 'center',
+          fontFamily: font,
+          fontSize,
+          fill: color,
+          fontWeight: 'bold',
+          textAlign: 'center',
         })
+        fabricRef.current.add(t)
+        fabricRef.current.setActiveObject(t)
+        fabricRef.current.renderAll()
       },
 
       deleteSelected: () => {
@@ -108,22 +115,36 @@ export const DesignCanvas = forwardRef<DesignCanvasRef, Props>(
 
       clear: () => {
         fabricRef.current?.clear()
-        fabricRef.current?.set({ backgroundColor: '#ffffff' })
+        fabricRef.current?.set({ backgroundColor: 'transparent' })
         fabricRef.current?.renderAll()
       },
 
+      // Export as PNG with transparency — white background not baked in
       getDataUrl: () => {
-        return fabricRef.current?.toDataURL({ format: 'png', multiplier: 2 }) ?? null
+        if (!fabricRef.current) return null
+        // Temporarily remove background so export is transparent
+        fabricRef.current.set({ backgroundColor: 'transparent' })
+        fabricRef.current.renderAll()
+        const dataUrl = fabricRef.current.toDataURL({ format: 'png', multiplier: 2 })
+        return dataUrl
       },
     }))
 
     return (
       <div
         className="relative border border-charcoal/20 shadow-sm"
-        style={{ width: size, height: size }}
+        style={{
+          width: size,
+          height: size,
+          // Checkered pattern shows transparency clearly
+          backgroundImage: 'linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)',
+          backgroundSize: '16px 16px',
+          backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
+          backgroundColor: '#f0f0f0',
+        }}
       >
         {!ready && (
-          <div className="absolute inset-0 flex items-center justify-center bg-warm-gray">
+          <div className="absolute inset-0 flex items-center justify-center bg-warm-gray z-10">
             <div className="w-4 h-4 border-2 border-charcoal/30 border-t-charcoal rounded-full animate-spin" />
           </div>
         )}
