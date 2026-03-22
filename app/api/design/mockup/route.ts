@@ -28,14 +28,32 @@ async function getVariantId(colorValue: string): Promise<number | null> {
   if (!colorName) return null
 
   const res = await printfulFetch(`/products/${PRODUCT_ID}`)
-  if (!res.ok) return null
+  if (!res.ok) {
+    console.error('Printful product fetch failed:', res.status, await res.text())
+    return null
+  }
 
   const data = await res.json()
   const variants: Array<{ id: number; color: string; size: string }> =
     data.result?.variants ?? []
 
-  // Pick M size for this color — any size produces the same front mockup
-  const variant = variants.find((v) => v.color === colorName && v.size === 'M')
+  // Log available colors on first lookup to help diagnose mismatches
+  const availableColors = [...new Set(variants.map((v) => v.color))]
+  console.log('Printful available colors:', availableColors)
+  console.log('Looking for color:', colorName)
+
+  // Case-insensitive match; prefer M size but fall back to any size
+  const match = (v: { color: string; size: string }) =>
+    v.color?.toLowerCase() === colorName.toLowerCase()
+
+  const variant =
+    variants.find((v) => match(v) && v.size === 'M') ??
+    variants.find((v) => match(v))
+
+  if (!variant) {
+    console.error(`No variant for color "${colorName}". Available: ${availableColors.join(', ')}`)
+  }
+
   return variant?.id ?? null
 }
 
