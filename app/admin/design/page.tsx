@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Loader2, Sparkles, RefreshCw, Save } from 'lucide-react'
+import { ShirtMockup } from '@/components/design/ShirtMockup'
 import { toast } from 'sonner'
 import { slugify } from '@/lib/utils'
 import type { Collection } from '@/types'
@@ -286,42 +287,18 @@ export default function AdminDesignPage() {
             </div>
           </div>
 
-          <div
-            className="relative aspect-square flex items-center justify-center border border-warm-gray"
-            style={{ backgroundColor: shirtColor.hex }}
-          >
-            {generating ? (
-              <div className="text-center">
-                <Loader2
-                  className="h-8 w-8 animate-spin mx-auto mb-3"
-                  style={{ color: shirtColor.value === 'white' ? '#1C1C1E' : '#FAF8F4' }}
-                />
-                <p className="font-body text-xs" style={{ color: shirtColor.value === 'white' ? '#1C1C1E80' : '#FAF8F480' }}>
-                  Generating…
-                </p>
-              </div>
-            ) : imageUrl ? (
-              <div className="relative w-3/4 h-3/4 flex items-center justify-center">
-                <img
-                  src={imageUrl}
-                  alt="Generated design"
-                  className="w-full h-full object-contain mix-blend-multiply"
-                />
-              </div>
-            ) : (
-              <div className="text-center px-8">
-                <Sparkles
-                  className="h-8 w-8 mx-auto mb-3 opacity-20"
-                  style={{ color: shirtColor.value === 'white' ? '#1C1C1E' : '#FAF8F4' }}
-                />
-                <p
-                  className="font-body text-xs opacity-30"
-                  style={{ color: shirtColor.value === 'white' ? '#1C1C1E' : '#FAF8F4' }}
-                >
-                  Design preview
-                </p>
+          <div className="relative flex items-center justify-center bg-warm-gray p-4 border border-warm-gray">
+            {generating && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-warm-gray z-10">
+                <Loader2 className="h-8 w-8 animate-spin mb-3 text-charcoal/40" />
+                <p className="font-body text-xs text-charcoal/40">Generating…</p>
               </div>
             )}
+            <ShirtMockup
+              color={shirtColor.hex}
+              designUrl={imageUrl}
+              size={360}
+            />
           </div>
         </div>
       </div>
