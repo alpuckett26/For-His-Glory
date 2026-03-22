@@ -1,68 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
 
 interface PrintfulWebhookEvent {
   type: string
   data: {
-    order?: {
-      id: number
-      external_id: string
-      status: string
-    }
-    shipment?: {
-      tracking_number: string
-      tracking_url: string
-      service: string
-    }
+    order?: { id: number; external_id: string; status: string }
+    shipment?: { tracking_number: string; tracking_url: string; service: string }
   }
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json() as PrintfulWebhookEvent
-  const supabase = await createServiceClient()
 
-  // Log the webhook
-  await supabase.from('webhook_logs').insert({
-    source: 'printful',
-    event_type: body.type,
-    payload: body as unknown as Record<string, unknown>,
-    processed: false,
-  })
+  await sql`
+    INSERT INTO webhook_logs (source, event_type, payload, processed)
+    VALUES ('printful', ${body.type}, ${JSON.stringify(body)}, false)
+  `
 
-  // Process async
-  processEvent(body, supabase).catch(console.error)
+  processEvent(body).catch(console.error)
 
   return NextResponse.json({ received: true })
 }
 
-async function processEvent(event: PrintfulWebhookEvent, supabase: Awaited<ReturnType<typeof createServiceClient>>) {
+async function processEvent(event: PrintfulWebhookEvent) {
   const supplierOrderId = String(event.data.order?.id ?? '')
 
   switch (event.type) {
     case 'package_shipped': {
-      const trackingNumber = event.data.shipment?.tracking_number
-      const trackingUrl = event.data.shipment?.tracking_url
-
       if (supplierOrderId) {
-        // Update supplier order
-        const { data: supplierOrder } = await supabase
-          .from('supplier_orders')
-          .update({
-            status: 'shipped',
-            tracking_number: trackingNumber,
-            tracking_url: trackingUrl,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('supplier_order_id', supplierOrderId)
-          .select()
-          .single()
-
-        // Update main order status
-        if (supplierOrder) {
-          await supabase
-            .from('orders')
-            .update({ status: 'shipped' })
-            .eq('id', supplierOrder.order_id)
+        const rows = await sql`
+          UPDATE supplier_orders SET
+            status = 'shipped',
+            tracking_number = ${event.data.shipment?.tracking_number ?? null},
+            tracking_url = ${event.data.shipment?.tracking_url ?? null},
+            updated_at = NOW()
+          WHERE supplier_order_id = ${supplierOrderId}
+          RETURNING order_id
+        `
+        if (rows[0]?.order_id) {
+          await sql`UPDATE orders SET status = 'shipped' WHERE id = ${rows[0].order_id}`
         }
       }
       break
@@ -70,27 +46,25 @@ async function processEvent(event: PrintfulWebhookEvent, supabase: Awaited<Retur
 
     case 'order_failed': {
       if (supplierOrderId) {
-        await supabase
-          .from('supplier_orders')
-          .update({
-            status: 'failed',
-            error_message: `Printful order failed: ${event.data.order?.status}`,
-            last_attempted_at: new Date().toISOString(),
-          })
-          .eq('supplier_order_id', supplierOrderId)
+        await sql`
+          UPDATE supplier_orders SET
+            status = 'failed',
+            error_message = ${`Printful order failed: ${event.data.order?.status}`},
+            last_attempted_at = NOW()
+          WHERE supplier_order_id = ${supplierOrderId}
+        `
       }
       break
     }
 
     case 'order_updated': {
       if (supplierOrderId && event.data.order?.status) {
-        await supabase
-          .from('supplier_orders')
-          .update({
-            status: event.data.order.status.toLowerCase(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('supplier_order_id', supplierOrderId)
+        await sql`
+          UPDATE supplier_orders SET
+            status = ${event.data.order.status.toLowerCase()},
+            updated_at = NOW()
+          WHERE supplier_order_id = ${supplierOrderId}
+        `
       }
       break
     }
@@ -99,9 +73,8 @@ async function processEvent(event: PrintfulWebhookEvent, supabase: Awaited<Retur
       console.log(`Unhandled Printful event: ${event.type}`)
   }
 
-  await supabase
-    .from('webhook_logs')
-    .update({ processed: true })
-    .eq('source', 'printful')
-    .eq('event_type', event.type)
+  await sql`
+    UPDATE webhook_logs SET processed = true
+    WHERE source = 'printful' AND event_type = ${event.type}
+  `
 }

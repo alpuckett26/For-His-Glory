@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe/client'
-import { createServiceClient } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
+import { auth } from '@/auth'
 import type { CartItem } from '@/types'
 
 export async function POST(request: NextRequest) {
@@ -12,16 +12,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No items in cart' }, { status: 400 })
     }
 
-    const supabase = await createClient()
-    const serviceClient = await createServiceClient()
-
-    // Get current user (optional)
-    const { data: { user } } = await supabase.auth.getUser()
-
+    const session = await auth()
+    const user = session?.user ?? null
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
-    // Create Stripe Checkout session
-    const session = await stripe.checkout.sessions.create({
+    const stripeSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
       line_items: items.map((item) => ({
@@ -45,45 +40,32 @@ export async function POST(request: NextRequest) {
         userId: user?.id ?? '',
         itemCount: String(items.length),
       },
-      customer_email: user?.email,
+      customer_email: user?.email ?? undefined,
     })
 
-    // Calculate totals
     const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
-    // Create pending order in Supabase
-    const { data: order, error: orderError } = await serviceClient
-      .from('orders')
-      .insert({
-        user_id: user?.id ?? null,
-        stripe_session_id: session.id,
-        status: 'pending',
-        subtotal,
-        total: subtotal, // Will be updated with tax/shipping after payment
-        email: user?.email ?? null,
-      })
-      .select()
-      .single()
+    try {
+      const orderRows = await sql`
+        INSERT INTO orders (user_id, stripe_session_id, status, subtotal, total, email)
+        VALUES (${user?.id ?? null}, ${stripeSession.id}, 'pending', ${subtotal}, ${subtotal}, ${user?.email ?? null})
+        RETURNING id
+      `
+      const orderId = orderRows[0]?.id
 
-    if (orderError) {
-      console.error('Failed to create order:', orderError)
-    } else if (order) {
-      // Create order items
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_id: item.productId,
-        variant_id: item.variantId,
-        quantity: item.quantity,
-        unit_price: item.price,
-        title: item.title,
-        size: item.size,
-        color: item.color,
-      }))
-
-      await serviceClient.from('order_items').insert(orderItems)
+      if (orderId) {
+        for (const item of items) {
+          await sql`
+            INSERT INTO order_items (order_id, product_id, variant_id, quantity, unit_price, title, size, color)
+            VALUES (${orderId}, ${item.productId}, ${item.variantId}, ${item.quantity}, ${item.price}, ${item.title}, ${item.size}, ${item.color})
+          `
+        }
+      }
+    } catch (dbError) {
+      console.error('Failed to create order:', dbError)
     }
 
-    return NextResponse.json({ url: session.url })
+    return NextResponse.json({ url: stripeSession.url })
   } catch (error) {
     console.error('Checkout error:', error)
     return NextResponse.json(

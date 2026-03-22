@@ -11,7 +11,6 @@ import { FaithStory } from '@/components/product/FaithStory'
 import { RelatedProducts } from '@/components/product/RelatedProducts'
 import { PageLoader } from '@/components/shared/LoadingSpinner'
 import { useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { Product, ProductVariant } from '@/types'
 
 interface ProductPageProps {
@@ -28,42 +27,12 @@ export default function ProductPage({ params }: ProductPageProps) {
 
   useEffect(() => {
     async function fetchProduct() {
-      const supabase = createClient()
-
-      const { data } = await supabase
-        .from('products')
-        .select(`
-          *,
-          collection:collections(*),
-          images:product_images(*),
-          variants:product_variants(*)
-        `)
-        .eq('slug', slug)
-        .eq('active', true)
-        .single()
-
-      if (data) {
+      const res = await fetch(`/api/products/${slug}`)
+      if (res.ok) {
+        const { product: data, related } = await res.json()
         setProduct(data)
-
-        // Fetch related products
-        if (data.collection_id) {
-          const { data: related } = await supabase
-            .from('products')
-            .select(`
-              *,
-              collection:collections(*),
-              images:product_images(*),
-              variants:product_variants(*)
-            `)
-            .eq('collection_id', data.collection_id)
-            .eq('active', true)
-            .neq('id', data.id)
-            .limit(4)
-
-          setRelatedProducts(related ?? [])
-        }
+        setRelatedProducts(related ?? [])
       }
-
       setLoading(false)
     }
 

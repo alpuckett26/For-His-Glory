@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Eye, RefreshCw, ExternalLink } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { AdminTable } from '@/components/admin/AdminTable'
 import { AdminDrawer } from '@/components/admin/AdminDrawer'
 import { StatusBadge } from '@/components/admin/StatusBadge'
@@ -17,7 +16,6 @@ type OrderWithRelations = Order & {
 }
 
 export default function AdminOrdersPage() {
-  const supabase = createClient()
   const [orders, setOrders] = useState<OrderWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -30,13 +28,11 @@ export default function AdminOrdersPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('orders')
-      .select('*, items:order_items(*), supplier_orders(*)')
-      .order('created_at', { ascending: false })
+    const res = await fetch('/api/admin/orders')
+    const data = await res.json()
     setOrders(data ?? [])
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchData()

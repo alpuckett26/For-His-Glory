@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/auth'
+import { sql } from '@/lib/db'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 
 export default async function AdminLayout({
@@ -7,41 +8,25 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await auth()
 
-  if (!user) redirect('/')
+  if (!session?.user) redirect('/')
+  if (!['admin', 'super_admin'].includes(session.user.role ?? '')) redirect('/')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || !['admin', 'super_admin'].includes(profile.role)) {
-    redirect('/')
-  }
-
-  // Fetch badge counts for sidebar
-  const [{ count: unreadMessages }, { count: newBulkInquiries }] = await Promise.all([
-    supabase
-      .from('contact_messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'unread'),
-    supabase
-      .from('bulk_inquiries')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'new'),
+  const [unreadRows, bulkRows] = await Promise.all([
+    sql`SELECT COUNT(*)::int AS count FROM contact_messages WHERE status = 'unread'`,
+    sql`SELECT COUNT(*)::int AS count FROM bulk_inquiries WHERE status = 'new'`,
   ])
+
+  const unreadMessages = unreadRows[0]?.count ?? 0
+  const newBulkInquiries = bulkRows[0]?.count ?? 0
 
   return (
     <div className="flex min-h-screen bg-ivory">
       <AdminSidebar
         badgeCounts={{
-          messages: unreadMessages ?? 0,
-          bulkInquiries: newBulkInquiries ?? 0,
+          messages: unreadMessages,
+          bulkInquiries: newBulkInquiries,
         }}
       />
       <div className="flex-1 overflow-auto min-w-0">

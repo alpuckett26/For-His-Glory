@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Eye } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { AdminTable } from '@/components/admin/AdminTable'
 import { AdminDrawer } from '@/components/admin/AdminDrawer'
 import { StatusBadge } from '@/components/admin/StatusBadge'
@@ -14,7 +13,6 @@ import type { BulkInquiry } from '@/types'
 const STATUS_OPTIONS = BULK_INQUIRY_STATUSES.map((s) => s.value)
 
 export default function AdminBulkInquiriesPage() {
-  const supabase = createClient()
   const [inquiries, setInquiries] = useState<BulkInquiry[]>([])
   const [loading, setLoading] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -23,13 +21,11 @@ export default function AdminBulkInquiriesPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('bulk_inquiries')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const res = await fetch('/api/admin/bulk-inquiries')
+    const data = await res.json()
     setInquiries(data ?? [])
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchData()
@@ -152,23 +148,22 @@ function InquiryDetail({
   inquiry: BulkInquiry
   onStatusChange: (updated: BulkInquiry) => void
 }) {
-  const supabase = createClient()
   const [status, setStatus] = useState(inquiry.status)
   const [notes, setNotes] = useState(inquiry.notes ?? '')
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
     setSaving(true)
-    const { data, error } = await supabase
-      .from('bulk_inquiries')
-      .update({ status, notes: notes || null, updated_at: new Date().toISOString() })
-      .eq('id', inquiry.id)
-      .select()
-      .single()
+    const res = await fetch(`/api/admin/bulk-inquiries?id=${inquiry.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, notes: notes || null }),
+    })
     setSaving(false)
-    if (error) return toast.error('Failed to save')
+    if (!res.ok) return toast.error('Failed to save')
+    const updated = await res.json()
     toast.success('Inquiry updated')
-    onStatusChange(data)
+    onStatusChange(updated)
   }
 
   const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (

@@ -3,14 +3,13 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { X, User, ShoppingBag } from 'lucide-react'
-import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { NAV_LINKS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 interface MobileMenuProps {
   isOpen: boolean
   onClose: () => void
-  user: SupabaseUser | null
+  user: { id?: string; email?: string | null } | null
 }
 
 export function MobileMenu({ isOpen, onClose, user }: MobileMenuProps) {

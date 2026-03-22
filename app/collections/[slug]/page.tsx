@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
 import { ProductGrid } from '@/components/shop/ProductGrid'
 import type { Metadata } from 'next'
 
@@ -9,18 +9,10 @@ interface CollectionPageProps {
 
 export async function generateMetadata({ params }: CollectionPageProps): Promise<Metadata> {
   const { slug } = await params
-  const supabase = await createClient()
+  const rows = await sql`SELECT * FROM collections WHERE slug = ${slug} AND active = true LIMIT 1`
+  const collection = rows[0]
 
-  const { data: collection } = await supabase
-    .from('collections')
-    .select('*')
-    .eq('slug', slug)
-    .eq('active', true)
-    .single()
-
-  if (!collection) {
-    return { title: 'Collection Not Found' }
-  }
+  if (!collection) return { title: 'Collection Not Found' }
 
   return {
     title: collection.name,
@@ -35,35 +27,26 @@ export async function generateMetadata({ params }: CollectionPageProps): Promise
 
 export default async function CollectionPage({ params }: CollectionPageProps) {
   const { slug } = await params
-  const supabase = await createClient()
 
-  const [{ data: collection }, { data: products }] = await Promise.all([
-    supabase
-      .from('collections')
-      .select('*')
-      .eq('slug', slug)
-      .eq('active', true)
-      .single(),
-    supabase
-      .from('products')
-      .select(`
-        *,
-        collection:collections(*),
-        images:product_images(*),
-        variants:product_variants(*)
-      `)
-      .eq('active', true)
-      .order('created_at', { ascending: false }),
+  const [collectionRows, collectionProducts] = await Promise.all([
+    sql`SELECT * FROM collections WHERE slug = ${slug} AND active = true LIMIT 1`,
+    sql`
+      SELECT p.*,
+        row_to_json(c.*) AS collection,
+        json_agg(DISTINCT pi.*) FILTER (WHERE pi.id IS NOT NULL) AS images,
+        json_agg(DISTINCT pv.*) FILTER (WHERE pv.id IS NOT NULL) AS variants
+      FROM products p
+      INNER JOIN collections c ON c.id = p.collection_id AND c.slug = ${slug}
+      LEFT JOIN product_images pi ON pi.product_id = p.id
+      LEFT JOIN product_variants pv ON pv.product_id = p.id
+      WHERE p.active = true
+      GROUP BY p.id, c.id
+      ORDER BY p.created_at DESC
+    `,
   ])
 
-  if (!collection) {
-    notFound()
-  }
-
-  // Filter products by collection
-  const collectionProducts = (products ?? []).filter(
-    (p) => p.collection_id === collection.id
-  )
+  const collection = collectionRows[0]
+  if (!collection) notFound()
 
   return (
     <div>
@@ -91,7 +74,7 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
             {collectionProducts.length} {collectionProducts.length === 1 ? 'piece' : 'pieces'}
           </p>
         </div>
-        <ProductGrid products={collectionProducts} />
+        <ProductGrid products={collectionProducts as never[]} />
       </div>
     </div>
   )

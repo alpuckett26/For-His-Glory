@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Star, Upload, X, PlusCircle } from 'lucide-react'
+import { Plus, Pencil, Trash2, Star, X, PlusCircle } from 'lucide-react'
 import Image from 'next/image'
-import { createClient } from '@/lib/supabase/client'
 import { AdminTable } from '@/components/admin/AdminTable'
 import { AdminDrawer } from '@/components/admin/AdminDrawer'
 import { StatusBadge } from '@/components/admin/StatusBadge'
@@ -68,7 +67,6 @@ interface ProductFormProps {
 }
 
 function ProductFormContent({ product, collections, onSaved }: ProductFormProps) {
-  const supabase = createClient()
   const [saving, setSaving] = useState(false)
   const [savedProductId, setSavedProductId] = useState<string | null>(product?.id ?? null)
 
@@ -146,17 +144,22 @@ function ProductFormContent({ product, collections, onSaved }: ProductFormProps)
       }
 
       if (product) {
-        const { error } = await supabase.from('products').update(payload).eq('id', product.id)
-        if (error) throw error
+        const res = await fetch('/api/admin/products', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: product.id, ...payload }),
+        })
+        if (!res.ok) throw new Error('Failed to update')
         setSavedProductId(product.id)
         toast.success('Product updated')
       } else {
-        const { data: newProduct, error } = await supabase
-          .from('products')
-          .insert(payload)
-          .select()
-          .single()
-        if (error) throw error
+        const res = await fetch('/api/admin/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) throw new Error('Failed to create')
+        const newProduct = await res.json()
         setSavedProductId(newProduct.id)
         toast.success('Product created')
       }
@@ -169,17 +172,20 @@ function ProductFormContent({ product, collections, onSaved }: ProductFormProps)
 
   const addVariant = async () => {
     if (!savedProductId) return toast.error('Save the product first')
-    const { error } = await supabase.from('product_variants').insert({
-      product_id: savedProductId,
-      size: variantDraft.size || null,
-      color: variantDraft.color || null,
-      color_hex: variantDraft.color_hex || null,
-      price: variantDraft.price ?? null,
-      sku: variantDraft.sku || null,
-      active: true,
-      inventory_count: 0,
+    const res = await fetch('/api/admin/products/variants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_id: savedProductId,
+        size: variantDraft.size || null,
+        color: variantDraft.color || null,
+        color_hex: variantDraft.color_hex || null,
+        price: variantDraft.price ?? null,
+        sku: variantDraft.sku || null,
+        active: true,
+      }),
     })
-    if (error) return toast.error('Failed to add variant')
+    if (!res.ok) return toast.error('Failed to add variant')
     setVariants((prev) => [...prev, variantDraft])
     setVariantDraft({ size: '', color: '', color_hex: '', price: null, sku: '' })
     setAddingVariant(false)
@@ -190,54 +196,46 @@ function ProductFormContent({ product, collections, onSaved }: ProductFormProps)
     if (!savedProductId) return
     const variant = product?.variants?.[idx]
     if (variant?.id) {
-      const { error } = await supabase
-        .from('product_variants')
-        .delete()
-        .eq('id', variant.id)
-      if (error) return toast.error('Failed to delete variant')
+      const res = await fetch('/api/admin/products/variants', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: variant.id }),
+      })
+      if (!res.ok) return toast.error('Failed to delete variant')
     }
     setVariants((prev) => prev.filter((_, i) => i !== idx))
     toast.success('Variant removed')
   }
 
-  const uploadImage = async (file: File) => {
-    if (!savedProductId) return toast.error('Save the product first')
-    setUploadingImage(true)
-    try {
-      const ext = file.name.split('.').pop()
-      const path = `${savedProductId}/${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(path, file)
-      if (uploadError) throw uploadError
+  const [imageUrlInput, setImageUrlInput] = useState('')
 
-      const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(path)
-      const isPrimary = images.length === 0
-
-      const { data: img, error: dbError } = await supabase
-        .from('product_images')
-        .insert({
-          product_id: savedProductId,
-          url: urlData.publicUrl,
-          alt_text: file.name,
-          sort_order: images.length,
-          is_primary: isPrimary,
-        })
-        .select()
-        .single()
-      if (dbError) throw dbError
-      setImages((prev) => [...prev, img])
-      toast.success('Image uploaded')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setUploadingImage(false)
-    }
+  const addImageUrl = async () => {
+    if (!savedProductId || !imageUrlInput) return
+    const res = await fetch('/api/admin/products/images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_id: savedProductId,
+        url: imageUrlInput,
+        alt_text: '',
+        sort_order: images.length,
+        is_primary: images.length === 0,
+      }),
+    })
+    if (!res.ok) return toast.error('Failed to add image')
+    const img = await res.json()
+    setImages((prev) => [...prev, img])
+    setImageUrlInput('')
+    toast.success('Image added')
   }
 
   const deleteImage = async (img: ProductImage) => {
-    const { error } = await supabase.from('product_images').delete().eq('id', img.id)
-    if (error) return toast.error('Failed to delete image')
+    const res = await fetch('/api/admin/products/images', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: img.id }),
+    })
+    if (!res.ok) return toast.error('Failed to delete image')
     setImages((prev) => prev.filter((i) => i.id !== img.id))
     toast.success('Image removed')
   }
@@ -450,33 +448,29 @@ function ProductFormContent({ product, collections, onSaved }: ProductFormProps)
 
       {/* Images */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-display text-lg text-charcoal">Images</h3>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingImage || !savedProductId}
-            className="flex items-center gap-1.5 font-body text-xs text-gold hover:text-gold-light transition-colors disabled:opacity-40"
-          >
-            <Upload className="h-4 w-4" />
-            {uploadingImage ? 'Uploading…' : 'Upload image'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) uploadImage(file)
-              e.target.value = ''
-            }}
-          />
-        </div>
-
-        {!savedProductId && (
+        <h3 className="font-display text-lg text-charcoal mb-3">Images</h3>
+        {!savedProductId ? (
           <p className="font-body text-xs text-charcoal/40 mb-3">
-            Save the product first to upload images.
+            Save the product first to add images.
           </p>
+        ) : (
+          <div className="flex gap-2 mb-3">
+            <input
+              type="url"
+              value={imageUrlInput}
+              onChange={(e) => setImageUrlInput(e.target.value)}
+              placeholder="https://..."
+              className="flex-1 px-3 py-2 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold"
+            />
+            <button
+              type="button"
+              onClick={addImageUrl}
+              disabled={!imageUrlInput}
+              className="px-4 py-2 bg-charcoal text-ivory font-body text-sm hover:bg-charcoal/80 transition-colors disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
         )}
 
         {images.length > 0 && (
@@ -523,7 +517,6 @@ function ProductFormContent({ product, collections, onSaved }: ProductFormProps)
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminProductsPage() {
-  const supabase = createClient()
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
@@ -536,46 +529,47 @@ export default function AdminProductsPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [{ data: prods }, { data: cols }] = await Promise.all([
-      supabase
-        .from('products')
-        .select('*, collection:collections(*), images:product_images(*), variants:product_variants(*)')
-        .order('created_at', { ascending: false }),
-      supabase.from('collections').select('*').order('name'),
+    const [prodsRes, colsRes] = await Promise.all([
+      fetch('/api/admin/products'),
+      fetch('/api/admin/collections'),
     ])
-    setProducts(prods ?? [])
-    setCollections(cols ?? [])
+    setProducts(await prodsRes.json())
+    setCollections(await colsRes.json())
     setLoading(false)
-  }, [supabase])
+  }, [])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
   const toggleActive = async (product: ProductWithRelations) => {
-    const { error } = await supabase
-      .from('products')
-      .update({ active: !product.active })
-      .eq('id', product.id)
-    if (error) return toast.error('Failed to update')
+    const res = await fetch('/api/admin/products', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: product.id, active: !product.active }),
+    })
+    if (!res.ok) return toast.error('Failed to update')
     toast.success(`${product.active ? 'Deactivated' : 'Activated'} ${product.title}`)
     fetchData()
   }
 
   const toggleFeatured = async (product: ProductWithRelations) => {
-    const { error } = await supabase
-      .from('products')
-      .update({ featured: !product.featured })
-      .eq('id', product.id)
-    if (error) return toast.error('Failed to update')
+    const res = await fetch('/api/admin/products', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: product.id, featured: !product.featured }),
+    })
+    if (!res.ok) return toast.error('Failed to update')
     fetchData()
   }
 
   const deleteProduct = async (id: string) => {
     if (!confirm('Delete this product? This cannot be undone.')) return
     setDeletingId(id)
-    const { error } = await supabase.from('products').delete().eq('id', id)
-    if (error) toast.error('Failed to delete product')
+    const res = await fetch('/api/admin/products', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (!res.ok) toast.error('Failed to delete product')
     else {
       toast.success('Product deleted')
       fetchData()

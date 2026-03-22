@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/auth'
+import { sql } from '@/lib/db'
 import { formatDate, formatPrice } from '@/lib/utils'
 import { ORDER_STATUSES } from '@/lib/constants'
 import type { Metadata } from 'next'
@@ -10,16 +11,26 @@ export const metadata: Metadata = {
 }
 
 export default async function OrdersPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const session = await auth()
+  if (!session?.user) redirect('/sign-in?redirect=/account/orders')
 
-  if (!user) redirect('/sign-in?redirect=/account/orders')
-
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('*, items:order_items(*), supplier_orders(*)')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+  const orders = await sql`
+    SELECT
+      o.*,
+      json_agg(DISTINCT jsonb_build_object(
+        'id', oi.id, 'title', oi.title, 'size', oi.size, 'color', oi.color,
+        'quantity', oi.quantity, 'unit_price', oi.unit_price
+      )) FILTER (WHERE oi.id IS NOT NULL) AS items,
+      json_agg(DISTINCT jsonb_build_object(
+        'id', so.id, 'tracking_number', so.tracking_number, 'tracking_url', so.tracking_url
+      )) FILTER (WHERE so.id IS NOT NULL) AS supplier_orders
+    FROM orders o
+    LEFT JOIN order_items oi ON oi.order_id = o.id
+    LEFT JOIN supplier_orders so ON so.order_id = o.id
+    WHERE o.user_id = ${session.user.id}
+    GROUP BY o.id
+    ORDER BY o.created_at DESC
+  `
 
   const getStatusStyle = (status: string) => {
     return ORDER_STATUSES.find((s) => s.value === status)?.color ?? 'bg-gray-100 text-gray-600'

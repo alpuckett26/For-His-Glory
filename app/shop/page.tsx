@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
 import { ProductGrid } from '@/components/shop/ProductGrid'
 import { FilterSidebar } from '@/components/shop/FilterSidebar'
 import { SortSelect } from '@/components/shop/SortSelect'
@@ -22,54 +22,35 @@ interface ShopPageProps {
 
 async function ShopContent({ searchParams }: ShopPageProps) {
   const params = await searchParams
-  const supabase = await createClient()
 
-  // Build the query
-  let query = supabase
-    .from('products')
-    .select(`
-      *,
-      collection:collections(*),
-      images:product_images(*),
-      variants:product_variants(*)
-    `)
-    .eq('active', true)
+  const sortClause =
+    params.sort === 'price_asc' ? sql`ORDER BY p.price ASC` :
+    params.sort === 'price_desc' ? sql`ORDER BY p.price DESC` :
+    params.sort === 'featured' ? sql`ORDER BY p.featured DESC, p.created_at DESC` :
+    sql`ORDER BY p.created_at DESC`
 
-  // Collection filter
-  if (params.collection) {
-    const { data: collection } = await supabase
-      .from('collections')
-      .select('id')
-      .eq('slug', params.collection)
-      .single()
+  const collectionFilter = params.collection
+    ? sql`AND c.slug = ${params.collection}`
+    : sql``
 
-    if (collection) {
-      query = query.eq('collection_id', collection.id)
-    }
-  }
-
-  // Sort
-  switch (params.sort) {
-    case 'price_asc':
-      query = query.order('price', { ascending: true })
-      break
-    case 'price_desc':
-      query = query.order('price', { ascending: false })
-      break
-    case 'featured':
-      query = query.order('featured', { ascending: false })
-      break
-    default:
-      query = query.order('created_at', { ascending: false })
-  }
-
-  const [{ data: products }, { data: collections }] = await Promise.all([
-    query,
-    supabase.from('collections').select('*').eq('active', true).order('sort_order'),
+  const [allProducts, collections] = await Promise.all([
+    sql`
+      SELECT p.*,
+        row_to_json(c.*) AS collection,
+        json_agg(DISTINCT pi.*) FILTER (WHERE pi.id IS NOT NULL) AS images,
+        json_agg(DISTINCT pv.*) FILTER (WHERE pv.id IS NOT NULL) AS variants
+      FROM products p
+      LEFT JOIN collections c ON c.id = p.collection_id
+      LEFT JOIN product_images pi ON pi.product_id = p.id
+      LEFT JOIN product_variants pv ON pv.product_id = p.id
+      WHERE p.active = true ${collectionFilter}
+      GROUP BY p.id, c.id
+      ${sortClause}
+    `,
+    sql`SELECT * FROM collections WHERE active = true ORDER BY sort_order`,
   ])
 
-  // Size filter (client-side after fetch since it's on variants)
-  let filteredProducts = (products ?? []) as Product[]
+  let filteredProducts = allProducts as Product[]
   if (params.size) {
     filteredProducts = filteredProducts.filter((p) =>
       p.variants?.some((v) => v.size === params.size && v.active)
@@ -79,7 +60,7 @@ async function ShopContent({ searchParams }: ShopPageProps) {
   return (
     <div className="flex gap-10">
       <Suspense>
-        <FilterSidebar collections={collections ?? []} />
+        <FilterSidebar collections={collections as never[]} />
       </Suspense>
 
       <div className="flex-1">

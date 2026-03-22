@@ -3,9 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import type { Profile } from '@/types'
-import type { Metadata } from 'next'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -60,23 +57,18 @@ function SectionCard({
 // ─── Site Settings Section ─────────────────────────────────────────────────────
 
 function SiteSettingsSection() {
-  const supabase = createClient()
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const loadSettings = async () => {
-      const { data } = await supabase.from('site_settings').select('key, value')
-      if (data) {
+    fetch('/api/admin/settings')
+      .then((r) => r.json())
+      .then((rows: { key: string; value: string }[]) => {
         const map: Record<string, string> = {}
-        data.forEach(({ key, value }: { key: string; value: string }) => {
-          map[key] = value
-        })
+        rows.forEach(({ key, value }) => { map[key] = value })
         setSettings(map)
-      }
-    }
-    loadSettings()
-  }, [supabase])
+      })
+  }, [])
 
   const set = (key: string, value: string) =>
     setSettings((prev) => ({ ...prev, [key]: value }))
@@ -85,10 +77,12 @@ function SiteSettingsSection() {
     setSaving(true)
     try {
       const rows = Object.entries(settings).map(([key, value]) => ({ key, value }))
-      const { error } = await supabase
-        .from('site_settings')
-        .upsert(rows, { onConflict: 'key' })
-      if (error) throw error
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rows),
+      })
+      if (!res.ok) throw new Error('Failed to save')
       toast.success('Settings saved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save settings')
@@ -139,26 +133,19 @@ function SiteSettingsSection() {
 // ─── Homepage Content Section ──────────────────────────────────────────────────
 
 function HomepageContentSection() {
-  const supabase = createClient()
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const loadSettings = async () => {
-      const { data } = await supabase
-        .from('site_settings')
-        .select('key, value')
-        .in('key', ['hero_headline', 'hero_subheadline', 'hero_cta'])
-      if (data) {
+    fetch('/api/admin/settings')
+      .then((r) => r.json())
+      .then((rows: { key: string; value: string }[]) => {
+        const keys = ['hero_headline', 'hero_subheadline', 'hero_cta']
         const map: Record<string, string> = {}
-        data.forEach(({ key, value }: { key: string; value: string }) => {
-          map[key] = value
-        })
+        rows.filter((r) => keys.includes(r.key)).forEach(({ key, value }) => { map[key] = value })
         setSettings(map)
-      }
-    }
-    loadSettings()
-  }, [supabase])
+      })
+  }, [])
 
   const set = (key: string, value: string) =>
     setSettings((prev) => ({ ...prev, [key]: value }))
@@ -167,10 +154,12 @@ function HomepageContentSection() {
     setSaving(true)
     try {
       const rows = Object.entries(settings).map(([key, value]) => ({ key, value }))
-      const { error } = await supabase
-        .from('site_settings')
-        .upsert(rows, { onConflict: 'key' })
-      if (error) throw error
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rows),
+      })
+      if (!res.ok) throw new Error('Failed to save')
       toast.success('Homepage content saved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
@@ -285,42 +274,28 @@ function SupplierConfigSection() {
 // ─── Admin Users Section ───────────────────────────────────────────────────────
 
 function AdminUsersSection() {
-  const supabase = createClient()
-  const [admins, setAdmins] = useState<Profile[]>([])
+  const [admins, setAdmins] = useState<{ id: string; email: string; full_name: string | null; role: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [currentRole, setCurrentRole] = useState<string | null>(null)
 
   const fetchAdmins = useCallback(async () => {
-    const [{ data: profileData }, { data: adminList }] = await Promise.all([
-      supabase.auth.getUser().then(async ({ data }) => {
-        if (!data.user) return { data: null }
-        return supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single()
-      }),
-      supabase
-        .from('profiles')
-        .select('*')
-        .in('role', ['admin', 'super_admin'])
-        .order('created_at'),
-    ])
-    setCurrentRole((profileData as { role?: string } | null)?.role ?? null)
-    setAdmins(adminList ?? [])
+    const res = await fetch('/api/admin/users')
+    if (!res.ok) { setLoading(false); return }
+    const data = await res.json()
+    setCurrentRole(data.currentRole ?? null)
+    setAdmins(data.admins ?? [])
     setLoading(false)
-  }, [supabase])
+  }, [])
 
-  useEffect(() => {
-    fetchAdmins()
-  }, [fetchAdmins])
+  useEffect(() => { fetchAdmins() }, [fetchAdmins])
 
-  const updateRole = async (userId: string, role: Profile['role']) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role })
-      .eq('id', userId)
-    if (error) return toast.error('Failed to update role')
+  const updateRole = async (userId: string, role: string) => {
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    })
+    if (!res.ok) return toast.error('Failed to update role')
     toast.success('Role updated')
     fetchAdmins()
   }
@@ -352,7 +327,7 @@ function AdminUsersSection() {
               </div>
               <select
                 value={admin.role}
-                onChange={(e) => updateRole(admin.id, e.target.value as Profile['role'])}
+                onChange={(e) => updateRole(admin.id, e.target.value)}
                 className="px-2 py-1.5 border border-charcoal/20 font-body text-xs focus:outline-none focus:border-gold"
               >
                 <option value="customer">Customer (demote)</option>

@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Eye, Check, Reply } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { AdminTable } from '@/components/admin/AdminTable'
 import { AdminDrawer } from '@/components/admin/AdminDrawer'
 import { StatusBadge } from '@/components/admin/StatusBadge'
@@ -11,7 +10,6 @@ import { formatDate } from '@/lib/utils'
 import type { ContactMessage } from '@/types'
 
 export default function AdminContactMessagesPage() {
-  const supabase = createClient()
   const [messages, setMessages] = useState<ContactMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -20,24 +18,23 @@ export default function AdminContactMessagesPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('contact_messages')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const res = await fetch('/api/admin/contact-messages')
+    const data = await res.json()
     setMessages(data ?? [])
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
   const updateStatus = async (id: string, status: ContactMessage['status']) => {
-    const { error } = await supabase
-      .from('contact_messages')
-      .update({ status })
-      .eq('id', id)
-    if (error) return toast.error('Failed to update')
+    const res = await fetch('/api/admin/contact-messages', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    })
+    if (!res.ok) return toast.error('Failed to update')
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)))
     if (selected?.id === id) setSelected((s) => s ? { ...s, status } : s)
     toast.success(`Marked as ${status}`)

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Toaster } from 'sonner'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
+import { SessionProvider } from 'next-auth/react'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -49,19 +50,21 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-ivory text-charcoal font-body antialiased">
-        <Navbar />
-        <main className="min-h-screen pt-16 md:pt-20">
-          {children}
-        </main>
-        <Footer />
-        <Toaster
-          position="bottom-right"
-          toastOptions={{
-            style: {
-              fontFamily: 'var(--font-body)',
-            },
-          }}
-        />
+        <SessionProvider>
+          <Navbar />
+          <main className="min-h-screen pt-16 md:pt-20">
+            {children}
+          </main>
+          <Footer />
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                fontFamily: 'var(--font-body)',
+              },
+            }}
+          />
+        </SessionProvider>
       </body>
     </html>
   )

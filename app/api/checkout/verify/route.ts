@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe/client'
-import { createServiceClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,18 +15,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (session.payment_status === 'paid') {
-      const supabase = await createServiceClient()
+      const paymentIntentId =
+        typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null
 
-      await supabase
-        .from('orders')
-        .update({
-          status: 'paid',
-          stripe_payment_intent_id:
-            typeof session.payment_intent === 'string'
-              ? session.payment_intent
-              : session.payment_intent?.id,
-        })
-        .eq('stripe_session_id', sessionId)
+      await sql`
+        UPDATE orders
+        SET status = 'paid', stripe_payment_intent_id = ${paymentIntentId}
+        WHERE stripe_session_id = ${sessionId}
+      `
     }
 
     return NextResponse.json({ status: session.payment_status })

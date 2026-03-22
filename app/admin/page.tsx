@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
 import { StatCard } from '@/components/admin/StatCard'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import { formatPrice, formatDate } from '@/lib/utils'
@@ -11,45 +11,26 @@ export const metadata: Metadata = {
 }
 
 export default async function AdminDashboardPage() {
-  const supabase = await createClient()
-
   const [
-    { count: orderCount },
-    { data: revenueData },
-    { count: pendingBulkCount },
-    { count: unreadMessagesCount },
-    { data: recentOrders },
-    { data: recentBulkInquiries },
+    orderCountRows,
+    revenueRows,
+    bulkCountRows,
+    messageCountRows,
+    recentOrders,
+    recentBulkInquiries,
   ] = await Promise.all([
-    supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .not('status', 'eq', 'cancelled'),
-    supabase
-      .from('orders')
-      .select('total')
-      .in('status', ['paid', 'processing', 'fulfilled', 'shipped', 'delivered']),
-    supabase
-      .from('bulk_inquiries')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'new'),
-    supabase
-      .from('contact_messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'unread'),
-    supabase
-      .from('orders')
-      .select('id, email, total, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(6),
-    supabase
-      .from('bulk_inquiries')
-      .select('id, name, organization, inquiry_type, quantity_estimate, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(6),
+    sql`SELECT COUNT(*)::int AS count FROM orders WHERE status != 'cancelled'`,
+    sql`SELECT COALESCE(SUM(total), 0) AS total FROM orders WHERE status IN ('paid','processing','fulfilled','shipped','delivered')`,
+    sql`SELECT COUNT(*)::int AS count FROM bulk_inquiries WHERE status = 'new'`,
+    sql`SELECT COUNT(*)::int AS count FROM contact_messages WHERE status = 'unread'`,
+    sql`SELECT id, email, total, status, created_at FROM orders ORDER BY created_at DESC LIMIT 6`,
+    sql`SELECT id, name, organization, inquiry_type, quantity_estimate, status, created_at FROM bulk_inquiries ORDER BY created_at DESC LIMIT 6`,
   ])
 
-  const totalRevenue = revenueData?.reduce((sum, o) => sum + (o.total ?? 0), 0) ?? 0
+  const orderCount = orderCountRows[0]?.count ?? 0
+  const totalRevenue = Number(revenueRows[0]?.total ?? 0)
+  const pendingBulkCount = bulkCountRows[0]?.count ?? 0
+  const unreadMessagesCount = messageCountRows[0]?.count ?? 0
 
   return (
     <div>
@@ -115,7 +96,7 @@ export default async function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {!recentOrders || recentOrders.length === 0 ? (
+                {recentOrders.length === 0 ? (
                   <tr>
                     <td
                       colSpan={5}
@@ -179,7 +160,7 @@ export default async function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {!recentBulkInquiries || recentBulkInquiries.length === 0 ? (
+                {recentBulkInquiries.length === 0 ? (
                   <tr>
                     <td
                       colSpan={5}

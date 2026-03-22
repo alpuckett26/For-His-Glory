@@ -13,7 +13,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
+import { signOut } from 'next-auth/react'
 
 interface BadgeCounts {
   messages: number
@@ -34,7 +34,6 @@ interface AdminSidebarProps {
 export function AdminSidebar({ badgeCounts }: AdminSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
 
   const navItems: NavItem[] = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -57,8 +56,7 @@ export function AdminSidebar({ badgeCounts }: AdminSidebarProps) {
   ]
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
+    await signOut({ callbackUrl: '/' })
   }
 
   return (

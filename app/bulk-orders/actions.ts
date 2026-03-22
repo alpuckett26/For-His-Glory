@@ -1,6 +1,6 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
 import type { BulkInquiryData } from '@/lib/validations'
 import { bulkInquirySchema } from '@/lib/validations'
 
@@ -13,26 +13,24 @@ export async function submitBulkInquiry(
     return { success: false, error: 'Invalid form data' }
   }
 
-  const supabase = await createServiceClient()
-
-  const { error } = await supabase.from('bulk_inquiries').insert({
-    name: parsed.data.name,
-    email: parsed.data.email,
-    organization: parsed.data.organization,
-    phone: parsed.data.phone,
-    inquiry_type: parsed.data.inquiry_type,
-    quantity_estimate: parsed.data.quantity_estimate
-      ? Number(parsed.data.quantity_estimate)
-      : null,
-    shirt_type: parsed.data.shirt_type,
-    timeline: parsed.data.timeline,
-    notes: parsed.data.notes,
-  })
-
-  if (error) {
+  try {
+    await sql`
+      INSERT INTO bulk_inquiries (name, email, organization, phone, inquiry_type, quantity_estimate, shirt_type, timeline, notes)
+      VALUES (
+        ${parsed.data.name},
+        ${parsed.data.email},
+        ${parsed.data.organization ?? null},
+        ${parsed.data.phone ?? null},
+        ${parsed.data.inquiry_type ?? null},
+        ${parsed.data.quantity_estimate ? Number(parsed.data.quantity_estimate) : null},
+        ${parsed.data.shirt_type ?? null},
+        ${parsed.data.timeline ?? null},
+        ${parsed.data.notes ?? null}
+      )
+    `
+    return { success: true }
+  } catch (error) {
     console.error('Bulk inquiry error:', error)
     return { success: false, error: 'Failed to submit inquiry. Please try again.' }
   }
-
-  return { success: true }
 }

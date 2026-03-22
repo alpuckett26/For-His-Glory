@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: for-his-glory
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: node .next/standalone/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: PRINTFUL_API_KEY
+        sync: false
+      - key: PRINTFUL_STORE_ID
+        sync: false
+      - key: NEXT_PUBLIC_BRAND_NAME
+        value: For His Glory
+      - key: NEXT_PUBLIC_BRAND_TAGLINE
+        value: "Deo Gloria — For His Glory, Worn Daily"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { constructWebhookEvent } from '@/lib/stripe/webhooks'
-import { createServiceClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
 import { getSupplierAdapter } from '@/lib/suppliers'
 import type Stripe from 'stripe'
 
@@ -21,132 +21,112 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  // Return 200 immediately, process async
   processWebhookEvent(event).catch(console.error)
 
   return NextResponse.json({ received: true })
 }
 
 async function processWebhookEvent(event: Stripe.Event) {
-  const supabase = await createServiceClient()
-
-  // Log the webhook
-  await supabase.from('webhook_logs').insert({
-    source: 'stripe',
-    event_type: event.type,
-    payload: event as unknown as Record<string, unknown>,
-    processed: false,
-  })
+  await sql`
+    INSERT INTO webhook_logs (source, event_type, payload, processed)
+    VALUES ('stripe', ${event.type}, ${JSON.stringify(event)}, false)
+  `
 
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
 
-      // Update order status to paid
-      const { data: order } = await supabase
-        .from('orders')
-        .update({
-          status: 'paid',
-          stripe_payment_intent_id:
-            typeof session.payment_intent === 'string'
-              ? session.payment_intent
-              : null,
-          total: session.amount_total ? session.amount_total / 100 : null,
-          email: session.customer_email ?? session.customer_details?.email,
-          shipping_address: session.shipping_details?.address
-            ? {
-                name: session.shipping_details.name,
-                address1: session.shipping_details.address.line1,
-                address2: session.shipping_details.address.line2,
-                city: session.shipping_details.address.city,
-                state: session.shipping_details.address.state,
-                zip: session.shipping_details.address.postal_code,
-                country: session.shipping_details.address.country,
-              }
-            : null,
-        })
-        .eq('stripe_session_id', session.id)
-        .select()
-        .single()
+      const shippingAddress = session.shipping_details?.address
+        ? {
+            name: session.shipping_details.name,
+            address1: session.shipping_details.address.line1,
+            address2: session.shipping_details.address.line2,
+            city: session.shipping_details.address.city,
+            state: session.shipping_details.address.state,
+            zip: session.shipping_details.address.postal_code,
+            country: session.shipping_details.address.country,
+          }
+        : null
+
+      const paymentIntentId =
+        typeof session.payment_intent === 'string' ? session.payment_intent : null
+
+      const orderRows = await sql`
+        UPDATE orders SET
+          status = 'paid',
+          stripe_payment_intent_id = ${paymentIntentId},
+          total = ${session.amount_total ? session.amount_total / 100 : null},
+          email = ${session.customer_email ?? session.customer_details?.email ?? null},
+          shipping_address = ${shippingAddress ? JSON.stringify(shippingAddress) : null}
+        WHERE stripe_session_id = ${session.id}
+        RETURNING id, shipping_address, email
+      `
+      const order = orderRows[0]
 
       if (order) {
-        // Create supplier order record
-        await supabase.from('supplier_orders').insert({
-          order_id: order.id,
-          supplier: 'printful',
-          status: 'pending',
-        })
+        await sql`
+          INSERT INTO supplier_orders (order_id, supplier, status)
+          VALUES (${order.id}, 'printful', 'pending')
+        `
 
-        // Try to submit to Printful
         try {
-          const { data: orderItems } = await supabase
-            .from('order_items')
-            .select('*, variant:product_variants(*, supplier_variants(*))')
-            .eq('order_id', order.id)
+          const orderItems = await sql`
+            SELECT oi.*, pv.sku, sv.supplier_variant_id
+            FROM order_items oi
+            LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+            LEFT JOIN supplier_variants sv ON sv.variant_id = oi.variant_id AND sv.supplier = 'printful'
+            WHERE oi.order_id = ${order.id}
+          `
 
-          if (orderItems && order.shipping_address) {
+          if (orderItems.length > 0 && order.shipping_address) {
+            const addr = order.shipping_address as {
+              name: string; email?: string; address1: string; address2?: string
+              city: string; state: string; zip: string; country: string
+            }
             const adapter = getSupplierAdapter('printful')
             const result = await adapter.submitOrder({
               externalOrderId: order.id,
-              recipient: order.shipping_address as {
-                name: string
-                email: string
-                address1: string
-                address2?: string
-                city: string
-                state: string
-                zip: string
-                country: string
-              },
+              recipient: { ...addr, email: addr.email ?? order.email ?? '' },
               items: orderItems.map((item) => ({
-                supplierVariantId: item.variant?.supplier_variants?.[0]?.supplier_variant_id ?? item.variant_id,
+                supplierVariantId: item.supplier_variant_id ?? item.sku ?? item.variant_id,
                 quantity: item.quantity,
               })),
             })
 
-            // Update supplier order with result
-            await supabase
-              .from('supplier_orders')
-              .update({
-                supplier_order_id: result.supplierOrderId,
-                status: result.status,
-                submitted_at: new Date().toISOString(),
-              })
-              .eq('order_id', order.id)
-              .eq('supplier', 'printful')
+            await sql`
+              UPDATE supplier_orders SET
+                supplier_order_id = ${result.supplierOrderId},
+                status = ${result.status},
+                submitted_at = NOW()
+              WHERE order_id = ${order.id} AND supplier = 'printful'
+            `
           }
         } catch (supplierError) {
           console.error('Failed to submit to Printful:', supplierError)
-
-          await supabase
-            .from('supplier_orders')
-            .update({
-              status: 'failed',
-              error_message: String(supplierError),
-              last_attempted_at: new Date().toISOString(),
-            })
-            .eq('order_id', order.id)
-            .eq('supplier', 'printful')
+          await sql`
+            UPDATE supplier_orders SET
+              status = 'failed',
+              error_message = ${String(supplierError)},
+              last_attempted_at = NOW()
+            WHERE order_id = ${order.id} AND supplier = 'printful'
+          `
         }
       }
 
-      await supabase
-        .from('webhook_logs')
-        .update({ processed: true })
-        .eq('event_type', event.type)
-        .eq('payload->id', event.id)
-
+      await sql`
+        UPDATE webhook_logs SET processed = true
+        WHERE source = 'stripe' AND event_type = ${event.type}
+          AND payload->>'id' = ${event.id}
+      `
       break
     }
 
     case 'payment_intent.payment_failed': {
       const paymentIntent = event.data.object as Stripe.PaymentIntent
-
-      await supabase
-        .from('orders')
-        .update({ status: 'cancelled' })
-        .eq('stripe_payment_intent_id', paymentIntent.id)
-
+      await sql`
+        UPDATE orders SET status = 'cancelled'
+        WHERE stripe_payment_intent_id = ${paymentIntent.id}
+      `
       break
     }
 

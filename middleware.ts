@@ -1,12 +1,29 @@
-import { type NextRequest } from 'next/server'
-import { updateSession } from '@/lib/supabase/middleware'
+import { auth } from '@/auth'
+import { NextResponse } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  return await updateSession(request)
-}
+export default auth((req) => {
+  const { pathname } = req.nextUrl
+  const user = req.auth?.user
+
+  if (!user && pathname.startsWith('/account')) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/sign-in'
+    url.searchParams.set('redirect', pathname)
+    return NextResponse.redirect(url)
+  }
+
+  if (pathname.startsWith('/admin')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/', req.url))
+    }
+    if (!['admin', 'super_admin'].includes(user.role ?? '')) {
+      return NextResponse.redirect(new URL('/', req.url))
+    }
+  }
+
+  return NextResponse.next()
+})
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/account/:path*', '/admin/:path*'],
 }

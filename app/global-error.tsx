@@ -18,9 +18,7 @@ export default function GlobalError({
       <body style={{ fontFamily: 'sans-serif', textAlign: 'center', padding: '4rem 1rem' }}>
         <h1 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Something went wrong</h1>
         <p style={{ color: '#666', marginBottom: '1.5rem' }}>
-          {error.message?.includes('supabaseUrl') || error.message?.includes('required')
-            ? 'Missing environment variables. Configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel project settings.'
-            : 'An unexpected error occurred.'}
+          An unexpected error occurred.
         </p>
         <button
           onClick={reset}

@@ -1,6 +1,6 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/server'
+import { sql } from '@/lib/db'
 import type { ContactFormData } from '@/lib/validations'
 import { contactFormSchema } from '@/lib/validations'
 
@@ -13,19 +13,14 @@ export async function submitContactForm(
     return { success: false, error: 'Invalid form data' }
   }
 
-  const supabase = await createServiceClient()
-
-  const { error } = await supabase.from('contact_messages').insert({
-    name: parsed.data.name,
-    email: parsed.data.email,
-    subject: parsed.data.subject,
-    message: parsed.data.message,
-  })
-
-  if (error) {
+  try {
+    await sql`
+      INSERT INTO contact_messages (name, email, subject, message)
+      VALUES (${parsed.data.name}, ${parsed.data.email}, ${parsed.data.subject ?? null}, ${parsed.data.message})
+    `
+    return { success: true }
+  } catch (error) {
     console.error('Contact form error:', error)
     return { success: false, error: 'Failed to submit message. Please try again.' }
   }
-
-  return { success: true }
 }

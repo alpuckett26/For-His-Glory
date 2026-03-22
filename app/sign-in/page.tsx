@@ -3,7 +3,7 @@
 import { useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { signIn } from 'next-auth/react'
 import { toast } from 'sonner'
 
 interface SignInPageProps {
@@ -17,7 +17,6 @@ export default function SignInPage({ searchParams }: SignInPageProps) {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,20 +24,29 @@ export default function SignInPage({ searchParams }: SignInPageProps) {
 
     try {
       if (mode === 'signin') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
-        toast.success('Welcome back!')
-        router.push(params.redirect ?? '/account')
-      } else {
-        const { error } = await supabase.auth.signUp({
+        const result = await signIn('credentials', {
           email,
           password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/account`,
-          },
+          redirect: false,
         })
-        if (error) throw error
-        toast.success('Check your email to confirm your account!')
+        if (result?.error) throw new Error('Invalid email or password')
+        toast.success('Welcome back!')
+        router.push(params.redirect ?? '/account')
+        router.refresh()
+      } else {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Registration failed')
+        toast.success('Account created! Signing you in...')
+        const result = await signIn('credentials', { email, password, redirect: false })
+        if (!result?.error) {
+          router.push('/account')
+          router.refresh()
+        }
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Authentication failed')

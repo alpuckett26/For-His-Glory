@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import Image from 'next/image'
-import { createClient } from '@/lib/supabase/client'
 import { AdminTable } from '@/components/admin/AdminTable'
 import { AdminDrawer } from '@/components/admin/AdminDrawer'
 import { StatusBadge } from '@/components/admin/StatusBadge'
@@ -35,12 +34,10 @@ interface CollectionFormProps {
 }
 
 function CollectionFormContent({ collection, onSaved }: CollectionFormProps) {
-  const supabase = createClient()
   const [saving, setSaving] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(collection?.id ?? null)
   const [imageUrl, setImageUrl] = useState<string | null>(collection?.image_url ?? null)
-  const [uploading, setUploading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [imageUrlInput, setImageUrlInput] = useState<string>(collection?.image_url ?? '')
 
   const {
     register,
@@ -80,21 +77,24 @@ function CollectionFormContent({ collection, onSaved }: CollectionFormProps) {
         image_url: imageUrl,
       }
 
+      const updatedPayload = { ...payload, image_url: imageUrl }
       if (collection) {
-        const { error } = await supabase
-          .from('collections')
-          .update(payload)
-          .eq('id', collection.id)
-        if (error) throw error
+        const res = await fetch('/api/admin/collections', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: collection.id, ...updatedPayload }),
+        })
+        if (!res.ok) throw new Error('Failed to update')
         setSavedId(collection.id)
         toast.success('Collection updated')
       } else {
-        const { data: newCol, error } = await supabase
-          .from('collections')
-          .insert(payload)
-          .select()
-          .single()
-        if (error) throw error
+        const res = await fetch('/api/admin/collections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedPayload),
+        })
+        if (!res.ok) throw new Error('Failed to create')
+        const newCol = await res.json()
         setSavedId(newCol.id)
         toast.success('Collection created')
       }
@@ -105,30 +105,16 @@ function CollectionFormContent({ collection, onSaved }: CollectionFormProps) {
     }
   }
 
-  const uploadImage = async (file: File) => {
-    if (!savedId) return toast.error('Save the collection first')
-    setUploading(true)
-    try {
-      const ext = file.name.split('.').pop()
-      const path = `collections/${savedId}/${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(path, file, { upsert: true })
-      if (uploadError) throw uploadError
-      const { data } = supabase.storage.from('product-images').getPublicUrl(path)
-      const url = data.publicUrl
-      const { error: dbErr } = await supabase
-        .from('collections')
-        .update({ image_url: url })
-        .eq('id', savedId)
-      if (dbErr) throw dbErr
-      setImageUrl(url)
-      toast.success('Image uploaded')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setUploading(false)
-    }
+  const applyImageUrl = async () => {
+    if (!savedId || !imageUrlInput) return
+    const res = await fetch('/api/admin/collections', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: savedId, image_url: imageUrlInput }),
+    })
+    if (!res.ok) return toast.error('Failed to save image URL')
+    setImageUrl(imageUrlInput)
+    toast.success('Image URL saved')
   }
 
   const inputClass = (err?: boolean) =>
@@ -196,37 +182,32 @@ function CollectionFormContent({ collection, onSaved }: CollectionFormProps) {
 
       {/* Image */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-display text-lg text-charcoal">Image</h3>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || !savedId}
-            className="flex items-center gap-1.5 font-body text-xs text-gold hover:text-gold-light transition-colors disabled:opacity-40"
-          >
-            <Upload className="h-4 w-4" />
-            {uploading ? 'Uploading…' : 'Upload image'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) uploadImage(file)
-              e.target.value = ''
-            }}
-          />
-        </div>
-
+        <h3 className="font-display text-lg text-charcoal mb-3">Image URL</h3>
         {!savedId && (
-          <p className="font-body text-xs text-charcoal/40">
-            Save the collection first to upload an image.
+          <p className="font-body text-xs text-charcoal/40 mb-2">
+            Save the collection first to set an image.
           </p>
         )}
-
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={imageUrlInput}
+            onChange={(e) => setImageUrlInput(e.target.value)}
+            placeholder="https://..."
+            disabled={!savedId}
+            className="flex-1 px-3 py-2.5 border border-charcoal/20 font-body text-sm focus:outline-none focus:border-gold disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={applyImageUrl}
+            disabled={!savedId || !imageUrlInput}
+            className="px-4 py-2.5 bg-charcoal text-ivory font-body text-sm hover:bg-charcoal/80 transition-colors disabled:opacity-40"
+          >
+            Set
+          </button>
+        </div>
         {imageUrl && (
-          <div className="relative aspect-video bg-warm-gray w-full max-w-xs">
+          <div className="relative aspect-video bg-warm-gray w-full max-w-xs mt-3">
             <Image src={imageUrl} alt="Collection" fill className="object-cover" />
           </div>
         )}
@@ -245,7 +226,6 @@ function CollectionFormContent({ collection, onSaved }: CollectionFormProps) {
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminCollectionsPage() {
-  const supabase = createClient()
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -253,40 +233,42 @@ export default function AdminCollectionsPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('collections')
-      .select('*, products:products(count)')
-      .order('sort_order')
+    const res = await fetch('/api/admin/collections')
+    const data = await res.json()
     setCollections(data ?? [])
     setLoading(false)
-  }, [supabase])
+  }, [])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
   const toggleActive = async (col: Collection) => {
-    const { error } = await supabase
-      .from('collections')
-      .update({ active: !col.active })
-      .eq('id', col.id)
-    if (error) return toast.error('Failed to update')
+    const res = await fetch('/api/admin/collections', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: col.id, ...col, active: !col.active }),
+    })
+    if (!res.ok) return toast.error('Failed to update')
     fetchData()
   }
 
   const toggleFeatured = async (col: Collection) => {
-    const { error } = await supabase
-      .from('collections')
-      .update({ featured: !col.featured })
-      .eq('id', col.id)
-    if (error) return toast.error('Failed to update')
+    const res = await fetch('/api/admin/collections', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: col.id, ...col, featured: !col.featured }),
+    })
+    if (!res.ok) return toast.error('Failed to update')
     fetchData()
   }
 
   const deleteCollection = async (id: string) => {
     if (!confirm('Delete this collection?')) return
-    const { error } = await supabase.from('collections').delete().eq('id', id)
-    if (error) toast.error('Failed to delete')
+    const res = await fetch('/api/admin/collections', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (!res.ok) toast.error('Failed to delete')
     else {
       toast.success('Collection deleted')
       fetchData()
