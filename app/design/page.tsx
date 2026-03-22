@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { Loader2, Sparkles, RefreshCw, ShoppingBag } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCart } from '@/hooks/useCart'
@@ -175,15 +174,12 @@ export default function DesignPage() {
                 </p>
               </div>
             ) : imageUrl ? (
-              <div className="relative w-3/4 h-3/4">
-                <Image
+              <div className="relative w-3/4 h-3/4 flex items-center justify-center">
+                <img
                   src={imageUrl}
                   alt="Generated shirt design"
-                  fill
-                  className="object-contain mix-blend-multiply"
-                  unoptimized
-                />
-              </div>
+                  className="w-full h-full object-contain mix-blend-multiply"
+                /></div>
             ) : (
               <div className="text-center px-8">
                 <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-20" style={{ color: shirtColor.value === 'white' ? '#1C1C1E' : '#FAF8F4' }} />

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 import { Loader2, Sparkles, RefreshCw, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { slugify } from '@/lib/utils'
@@ -302,13 +301,11 @@ export default function AdminDesignPage() {
                 </p>
               </div>
             ) : imageUrl ? (
-              <div className="relative w-3/4 h-3/4">
-                <Image
+              <div className="relative w-3/4 h-3/4 flex items-center justify-center">
+                <img
                   src={imageUrl}
                   alt="Generated design"
-                  fill
-                  className="object-contain mix-blend-multiply"
-                  unoptimized
+                  className="w-full h-full object-contain mix-blend-multiply"
                 />
               </div>
             ) : (
