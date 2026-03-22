@@ -11,7 +11,7 @@ export async function GET(
     sql`
       SELECT p.*,
         row_to_json(c.*) AS collection,
-        json_agg(DISTINCT pi.* ORDER BY pi.sort_order) FILTER (WHERE pi.id IS NOT NULL) AS images,
+        json_agg(DISTINCT pi.*) FILTER (WHERE pi.id IS NOT NULL) AS images,
         json_agg(DISTINCT pv.*) FILTER (WHERE pv.id IS NOT NULL) AS variants
       FROM products p
       LEFT JOIN collections c ON c.id = p.collection_id
